@@ -6,7 +6,10 @@ import torch.utils.data
 import torchvision.transforms as transforms
 
 def default_image_loader(path):
-    return Image.open(path).convert('RGB')
+    #return torch.utils.data.DataLoader
+    img = Image.open(path)
+    img = transforms.ToTensor()(img).unsqueeze(0)
+    return img
 
 class TripletImageLoader(torch.utils.data.Dataset):
     def __init__(self, base_path, filenames_filename, triplets_file_name, transform=None,

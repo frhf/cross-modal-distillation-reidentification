@@ -9,7 +9,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
-from triplet_mnist_loader import MNIST_t
+#from triplet_mnist_loader import MNIST_t
 from triplet_image_loader import TripletImageLoader
 from tripletnet import Tripletnet
 from visdom import Visdom
@@ -53,34 +53,38 @@ def main():
     global plotter 
     plotter = VisdomLinePlotter(env_name=args.name)
 
-    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-    train_loader = torch.utils.data.DataLoader(
-        MNIST_t('../data', train=True, download=True,
-                       transform=transforms.Compose([
-                           transforms.ToTensor(),
-                           transforms.Normalize((0.1307,), (0.3081,))
-                       ])),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
-    test_loader = torch.utils.data.DataLoader(
-        MNIST_t('../data', train=False, transform=transforms.Compose([
-                           transforms.ToTensor(),
-                           transforms.Normalize((0.1307,), (0.3081,))
-                       ])),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
+    path_file = "//home/fhafner/Documents/Scripts/masterthesis/utilities/save_triplet_files/somaset_paths.txt"
+    triplet_file = "//home/fhafner/Documents/Scripts/masterthesis/utilities/save_triplet_files/somaset_triplets.txt"
+    train_loader = TripletImageLoader("", path_file, triplet_file)
+    # train_loader = torch.utils.data.DataLoader(
+    #     MNIST_t('../data', train=True, download=True,
+    #                    transform=transforms.Compose([
+    #                        transforms.ToTensor(),
+    #                        transforms.Normalize((0.1307,), (0.3081,))
+    #                    ])),
+    #     batch_size=args.batch_size, shuffle=True, **kwargs)
+    # test_loader = torch.utils.data.DataLoader(
+    #     MNIST_t('../data', train=False, transform=transforms.Compose([
+    #                        transforms.ToTensor(),
+    #                        transforms.Normalize((0.1307,), (0.3081,))
+    #                    ])),
+    #     batch_size=args.batch_size, shuffle=True, **kwargs)
 
     class Net(nn.Module):
         def __init__(self):
             super(Net, self).__init__()
-            self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
+            self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
             self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
             self.conv2_drop = nn.Dropout2d()
-            self.fc1 = nn.Linear(320, 50)
+            #self.fc1 = nn.Linear(320, 50)
+            self.fc1 = nn.Linear(97, 50)
             self.fc2 = nn.Linear(50, 10)
 
         def forward(self, x):
             x = F.relu(F.max_pool2d(self.conv1(x), 2))
             x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-            x = x.view(-1, 320)
+            #x = x.view(-1, 320)
+            x = x.view(-1, 97)
             x = F.relu(self.fc1(x))
             x = F.dropout(x, training=self.training)
             return self.fc2(x)
@@ -134,6 +138,7 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
     # switch to train mode
     tnet.train()
     for batch_idx, (data1, data2, data3) in enumerate(train_loader):
+        #data1, data2, data3 = torch.Tensor(data1), torch.Tensor(data2), torch.Tensor(data3)
         if args.cuda:
             data1, data2, data3 = data1.cuda(), data2.cuda(), data3.cuda()
         data1, data2, data3 = Variable(data1), Variable(data2), Variable(data3)
@@ -166,7 +171,7 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
                   'Loss: {:.4f} ({:.4f}) \t'
                   'Acc: {:.2f}% ({:.2f}%) \t'
                   'Emb_Norm: {:.2f} ({:.2f})'.format(
-                epoch, batch_idx * len(data1), len(train_loader.dataset),
+                epoch, batch_idx * len(data1), len(train_loader),#.dataset),
                 losses.val, losses.avg, 
                 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
     # log avg values to somewhere
