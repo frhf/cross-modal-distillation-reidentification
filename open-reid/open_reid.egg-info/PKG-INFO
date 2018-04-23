@@ -1,0 +1,12 @@
+Metadata-Version: 2.1
+Name: open-reid
+Version: 0.2.0
+Summary: Deep Learning Library for Person Re-identification
+Home-page: https://github.com/Cysu/open-reid
+Author: Tong Xiao
+Author-email: st.cysu@gmail.com
+License: MIT
+Description: UNKNOWN
+Keywords: Person Re-identification,Computer Vision,Deep Learning
+Platform: UNKNOWN
+Provides-Extra: docs

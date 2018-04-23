@@ -1,0 +1,13 @@
+numpy
+scipy
+torch
+torchvision
+six
+h5py
+Pillow
+scikit-learn
+metric-learn
+
+[docs]
+sphinx
+sphinx_rtd_theme
