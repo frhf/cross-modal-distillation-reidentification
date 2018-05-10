@@ -4,7 +4,9 @@ from collections import defaultdict
 import numpy as np
 from sklearn.metrics import average_precision_score
 
-from ..utils import to_numpy
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+from utils import to_numpy
 
 
 def _unique_sample(ids_dict, num):
@@ -37,7 +39,11 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
     query_cams = np.asarray(query_cams)
     gallery_cams = np.asarray(gallery_cams)
     # Sort and find correct matches
+    # die Indizes entsprechen der sortierung von links nach rechts
     indices = np.argsort(distmat, axis=1)
+    # gallery_ids are e.g. from 0 to 6;
+    # hinterer Teil: (3175,1)
+    # hier wird die Statistik mit True, False gemacht
     matches = (gallery_ids[indices] == query_ids[:, np.newaxis])
     # Compute CMC for each query
     ret = np.zeros(topk)
@@ -48,6 +54,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
                  (gallery_cams[indices[i]] != query_cams[i]))
         if separate_camera_set:
             # Filter out samples from same camera
+            # for each row the same camera gets kicked out
             valid &= (gallery_cams[indices[i]] != query_cams[i])
         if not np.any(matches[i, valid]): continue
         if single_gallery_shot:

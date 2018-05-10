@@ -9,17 +9,21 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
-from reid import datasets
-from reid import models
-from reid.dist_metric import DistanceMetric
-from reid.loss import TripletLoss
-from reid.trainers import Trainer
-from reid.evaluators import Evaluator
-from reid.utils.data import transforms as T
-from reid.utils.data.preprocessor import Preprocessor
-from reid.utils.data.sampler import RandomIdentitySampler
-from reid.utils.logging import Logger
-from reid.utils.serialization import load_checkpoint, save_checkpoint
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+
+import datasets
+import models
+from dist_metric import DistanceMetric
+from loss import TripletLoss
+from trainers import Trainer
+from evaluators import Evaluator
+from utils.data import transforms as T
+from utils.data.preprocessor import Preprocessor
+from utils.data.sampler import RandomIdentitySampler
+from utils.logging import Logger
+from utils.serialization import load_checkpoint, save_checkpoint
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
@@ -71,6 +75,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
 
 def main(args):
+
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     cudnn.benchmark = True

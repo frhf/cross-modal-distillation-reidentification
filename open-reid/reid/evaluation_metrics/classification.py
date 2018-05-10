@@ -1,6 +1,11 @@
 from __future__ import absolute_import
 
-from ..utils import to_torch
+
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+
+
+from utils import to_torch
 
 
 def accuracy(output, target, topk=(1,)):

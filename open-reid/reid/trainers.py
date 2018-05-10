@@ -4,9 +4,14 @@ import time
 import torch
 from torch.autograd import Variable
 
-from .evaluation_metrics import accuracy
-from .loss import OIMLoss, TripletLoss
-from .utils.meters import AverageMeter
+
+
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+
+from evaluation_metrics import accuracy
+from loss import OIMLoss, TripletLoss
+from utils.meters import AverageMeter
 
 
 class BaseTrainer(object):

@@ -4,9 +4,14 @@ from collections import OrderedDict
 
 import torch
 
-from .evaluation_metrics import cmc, mean_ap
-from .feature_extraction import extract_cnn_feature
-from .utils.meters import AverageMeter
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+
+
+from evaluation_metrics import cmc, mean_ap
+from feature_extraction import extract_cnn_feature
+from utils.meters import AverageMeter
 
 # evaluates NN and saves time for doing so
 def extract_features(model, data_loader, print_freq=1, metric=None):

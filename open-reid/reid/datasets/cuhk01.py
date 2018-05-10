@@ -3,9 +3,13 @@ import os.path as osp
 
 import numpy as np
 
-from ..utils.data import Dataset
-from ..utils.osutils import mkdir_if_missing
-from ..utils.serialization import write_json
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils/')
+
+#from ..utils.data import Dataset
+from utils.data import Dataset
+from utils.osutils import mkdir_if_missing
+from utils.serialization import write_json
 
 
 class CUHK01(Dataset):

@@ -3,7 +3,10 @@ from collections import OrderedDict
 
 from torch.autograd import Variable
 
-from ..utils import to_torch
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+
+from utils import to_torch
 
 
 def extract_cnn_feature(model, inputs, modules=None):
