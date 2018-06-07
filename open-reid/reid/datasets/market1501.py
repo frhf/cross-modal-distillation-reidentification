@@ -2,7 +2,12 @@ from __future__ import print_function, absolute_import
 import os.path as osp
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils/')
+sys.path.append('..')
+#sys.path.append('../reid')
+
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid')
+
 
 #from ..utils.data import Dataset
 from utils.data import Dataset

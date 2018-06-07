@@ -5,20 +5,23 @@ import numpy as np
 
 import sys
 sys.path.append('..')
+#sys.path.append('../reid')
+
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid')
 
 
 #from ..utils.data import Dataset
 from utils.data import Dataset
 from utils.osutils import mkdir_if_missing
 from utils.serialization import write_json
-
-class Biwi_depth(Dataset):
+class Somaset(Dataset):
 
     def __init__(self, root, split_id=0, num_val=100, download=True):
-        super(Biwi_depth, self).__init__(root, split_id=split_id)
+        super(Somaset, self).__init__(root, split_id=split_id)
 
         if not self._check_integrity():
             raise RuntimeError("Dataset not found or corrupted. " +
                                "You can use download=True to download it.")
 
-        self.load(0.2)
+        self.load(0.1)

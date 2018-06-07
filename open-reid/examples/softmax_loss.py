@@ -9,15 +9,21 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
-from reid import datasets
-from reid import models
-from reid.dist_metric import DistanceMetric
-from reid.trainers import Trainer
-from reid.evaluators import Evaluator
-from reid.utils.data import transforms as T
-from reid.utils.data.preprocessor import Preprocessor
-from reid.utils.logging import Logger
-from reid.utils.serialization import load_checkpoint, save_checkpoint
+import sys
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+
+import datasets
+import models
+from dist_metric import DistanceMetric
+from loss import TripletLoss
+from trainers import Trainer
+from evaluators import Evaluator
+from utils.data import transforms as T
+from utils.data.preprocessor import Preprocessor
+from utils.data.sampler import RandomIdentitySampler
+from utils.logging import Logger
+from utils.serialization import load_checkpoint, save_checkpoint
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
@@ -77,6 +83,8 @@ def main(args):
     if not args.evaluate:
         sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
+    print(args)
+
     # Create data loaders
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
@@ -112,9 +120,9 @@ def main(args):
     if args.evaluate:
         metric.train(model, train_loader)
         print("Validation:")
-        evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
+        evaluator.evaluate(val_loader, dataset.val, dataset.val, 1, metric)
         print("Test:")
-        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, metric)
         return
 
     # Criterion
@@ -148,18 +156,21 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer)
+        trainer.train(epoch, train_loader, optimizer, args.print_freq)
         if epoch < args.start_save:
             continue
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
+        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, args.print_freq)
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
-        save_checkpoint({
-            'state_dict': model.module.state_dict(),
-            'epoch': epoch + 1,
-            'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+        print("is_best: " + str(is_best))
+        if is_best and epoch >= int(args.epochs/2):
+            print("epoch: " + str(epoch))
+            save_checkpoint({
+                'state_dict': model.module.state_dict(),
+                'epoch': epoch + 1,
+                'best_top1': best_top1,
+            }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
@@ -169,7 +180,7 @@ def main(args):
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     model.module.load_state_dict(checkpoint['state_dict'])
     metric.train(model, train_loader)
-    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, metric)
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ from .viper import VIPeR
 from .biwi import Biwi
 from .biwi_depth import Biwi_depth
 from .biwi_depth_mask import Biwi_depth_mask
+from .somaset import Somaset
 
 __factory = {
     'viper': VIPeR,
@@ -18,7 +19,8 @@ __factory = {
     'dukemtmc': DukeMTMC,
     'biwi': Biwi,
     'biwi_depth': Biwi_depth,
-    'biwi_depth_mask': Biwi_depth_mask
+    'biwi_depth_mask': Biwi_depth_mask,
+    'somaset': Somaset
 }
 
 

@@ -1,9 +1,0 @@
-Files already downloaded and verified
-CUHK03 dataset loaded
-  subset   | # ids | # images
-  ---------------------------
-  train    |  1267 |    24345
-  val      |   100 |     1918
-  trainval |  1367 |    26263
-  query    |   100 |     1930
-  gallery  |   100 |     1930

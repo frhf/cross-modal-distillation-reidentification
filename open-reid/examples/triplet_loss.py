@@ -84,6 +84,8 @@ def main(args):
     if not args.evaluate:
         sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
+    print(args)
+
     # Create data loaders
     # num instances is instances in mini batch
     assert args.num_instances > 1, "num_instances should be greater than 1"
@@ -103,6 +105,8 @@ def main(args):
     # Create model
     # Hacking here to let the classifier be the last feature embedding layer
     # Net structure: avgpool -> FC(1024) -> FC(args.features)
+
+    # bei triplet wird "hacking benoetigt
     model = models.create(args.arch, num_features=1024,
                           dropout=args.dropout, num_classes=args.features)
 
@@ -151,18 +155,22 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer)
+        trainer.train(epoch, train_loader, optimizer, args.print_freq)
         if epoch < args.start_save:
             continue
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val)
+            print("no ev and save in epoch: " + str(args.epochs))
+        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, args.print_freq)
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
-        save_checkpoint({
-            'state_dict': model.module.state_dict(),
-            'epoch': epoch + 1,
-            'best_top1': best_top1,
-        }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+        print("is_best: " + str(is_best))
+        if is_best and epoch >= int(args.epochs/2):
+            print("epoch: " + str(epoch))
+            save_checkpoint({
+                'state_dict': model.module.state_dict(),
+                'epoch': epoch + 1,
+                'best_top1': best_top1,
+            }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))

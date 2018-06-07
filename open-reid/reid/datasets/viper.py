@@ -4,7 +4,12 @@ import os.path as osp
 import numpy as np
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils/')
+sys.path.append('..')
+#sys.path.append('../reid')
+
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid')
+
 
 #from ..utils.data import Dataset
 from utils.data import Dataset

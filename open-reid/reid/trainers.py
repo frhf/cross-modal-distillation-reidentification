@@ -45,17 +45,31 @@ class BaseTrainer(object):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if (i + 1) % print_freq == 0:
-                print('Epoch: [{}][{}/{}]\t'
-                      'Time {:.3f} ({:.3f})\t'
-                      'Data {:.3f} ({:.3f})\t'
-                      'Loss {:.3f} ({:.3f})\t'
-                      'Prec {:.2%} ({:.2%})\t'
-                      .format(epoch, i + 1, len(data_loader),
-                              batch_time.val, batch_time.avg,
-                              data_time.val, data_time.avg,
-                              losses.val, losses.avg,
-                              precisions.val, precisions.avg))
+            if prec != 0:
+                if (i + 1) % print_freq == 0:
+                    print('Epoch: [{}][{}/{}]\t'
+                          'Time {:.3f} ({:.3f})\t'
+                          'Data {:.3f} ({:.3f})\t'
+                          'Loss {:.3f} ({:.3f})\t'
+                          'Prec {:.2%} ({:.2%})\t'
+                          .format(epoch, i + 1, len(data_loader),
+                                  batch_time.val, batch_time.avg,
+                                  data_time.val, data_time.avg,
+                                  losses.val, losses.avg,
+                                  precisions.val, precisions.avg))
+
+            else:
+                if (i + 1) % print_freq == 0:
+                    print('Epoch: [{}][{}/{}]\t'
+                          'Time {:.3f} ({:.3f})\t'
+                          'Data {:.3f} ({:.3f})\t'
+                          'Loss {:.3f} ({:.3f})\t'
+                          'Prec {:.2%} ({:.2%})\t'
+                          .format(epoch, i + 1, len(data_loader),
+                                  batch_time.val, batch_time.avg,
+                                  data_time.val, data_time.avg,
+                                  losses.val, losses.avg,
+                                  precisions.val, precisions.avg))
 
     def _parse_data(self, inputs):
         raise NotImplementedError
@@ -86,3 +100,19 @@ class Trainer(BaseTrainer):
         else:
             raise ValueError("Unsupported loss:", self.criterion)
         return loss, prec
+
+# inherits from the one above
+class TrainerRetrainer(BaseTrainer):
+    def _parse_data(self, inputs):
+        imgs, name, enc = inputs
+        inputs = [Variable(imgs)]
+        targets = Variable(enc.cuda())
+        return inputs, targets
+
+    def _forward(self, inputs, targets):
+        inputs = inputs[0].cuda()
+        outputs = self.model(inputs)
+
+        loss = self.criterion(outputs, targets)
+
+        return loss, 0
