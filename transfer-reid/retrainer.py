@@ -20,21 +20,22 @@ from evaluators import Evaluator
 from utils.data import transforms as T
 from utils.data.preprocessor import PreprocessorRetrain
 from utils.data.preprocessor import Preprocessor
-
+import copy
 from utils.data.sampler import RandomIdentitySampler
 from utils.logging import Logger
 from utils.serialization import load_checkpoint, save_checkpoint
 import pickle
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid')
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
-
+from tensorboardX import SummaryWriter
 
 class Retrainer:
     def __init__(self, path_to_model, dropout=0):
         self.path_to_model = path_to_model
         self.dropout = dropout
-        self.load_model()
-        pass
+        self.model = self.load_model()
+        #self.model_orig = copy.deepcopy(self.model)
+
 
     def load_model(self):
         name_dict = {
@@ -47,10 +48,11 @@ class Retrainer:
         self.model_arch = name_dict[len(checkpoint['state_dict'])]
         self.num_features = checkpoint['state_dict']['classifier.weight'].shape[1]
         self.num_classes = checkpoint['state_dict']['classifier.weight'].shape[0]
-        self.model = models.create(self.model_arch, num_features=self.num_features,
+        model = models.create(self.model_arch, num_features=self.num_features,
                           dropout=self.dropout, num_classes=self.num_classes)
-        self.model.load_state_dict(checkpoint['state_dict'])
-        self.model.cuda()
+        model.load_state_dict(checkpoint['state_dict'])
+        model.cuda()
+        return model
 
     def retrain(self, dataset, path_to_gt, root='/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data',
                 epochs=50, split_id=0, start_epoch=0, batch_size=64, workers=2, combine_trainval=False):
@@ -60,9 +62,11 @@ class Retrainer:
         else:
             height, width = (256, 128)
 
-        dataset, num_classes, train_loader, val_loader, test_loader = get_data(dataset, split_id, root, height,
-                                                                                   width, batch_size, workers,
-                                                                                   combine_trainval, path_to_gt)
+        dataset, num_classes, train_loader, val_loader_ret, val_loader_int, test_loader = \
+            get_data(dataset, split_id, root, height, width, batch_size, workers, combine_trainval, path_to_gt)
+
+        # initialize tensorboard writing
+        writer = SummaryWriter('/export/livia/home/vision/FHafner/masterthesis/tensorboard_logdir')
 
         self.model.cuda()
 
@@ -74,12 +78,19 @@ class Retrainer:
                                          weight_decay=5e-4,
                                          nesterov=True)
 
-        metric = DistanceMetric(algorithm='euclidean')
+        #metric = DistanceMetric(algorithm='euclidean')
 
         trainer = TrainerRetrainer(self.model, criterion)
 
+        evaluator = Evaluator(self.model)
+
         for epoch in range(start_epoch, epochs):
-            trainer.train(epoch, train_loader, optimizer)
+            trainer.train(epoch, train_loader, optimizer, writer=writer)
+
+            # evaluation
+            # if epoch % 3 == 0:
+            evaluator.evaluate_retrain(val_loader_ret, val_loader_int, criterion, epoch, dataset.val, dataset.val,
+                                       writer=writer)
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
@@ -108,15 +119,23 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers,
         normalizer,
     ])
 
-    train_set = pickle.load(open(path_to_gt + 'gt.txt', "rb"))
+    train_set = pickle.load(open(path_to_gt + 'gt_train.txt', "rb"))
+    val_set = pickle.load(open(path_to_gt + 'gt_val.txt', "rb"))
+
 
     train_loader = DataLoader(
         PreprocessorRetrain(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=True, pin_memory=True, drop_last=False)
+        shuffle=True, pin_memory=False, drop_last=False)
 
-    val_loader = DataLoader(
+    val_loader_ret = DataLoader(
+        PreprocessorRetrain(val_set, root=dataset.images_dir,
+                     transform=test_transformer),
+        batch_size=batch_size, num_workers=workers,
+        shuffle=False, pin_memory=False)
+
+    val_loader_int = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
@@ -128,4 +147,4 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers,
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
 
-    return dataset, num_classes, train_loader, val_loader, test_loader
+    return dataset, num_classes, train_loader, val_loader_ret, val_loader_int, test_loader

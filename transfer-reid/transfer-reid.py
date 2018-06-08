@@ -15,19 +15,20 @@ sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/u
 
 def main():#(args):
 
-    path_to_model = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/BIWI/softmax_resnet18_ep1000/checkpoint.pth.tar'
-    gtExtractor = GtExtractor(path_to_model)
+    path_to_model = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/BIWI/' \
+                    'softmax_resnet18_ep1000/checkpoint.pth.tar'
+    path_to_save_gt = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/biwi/'
 
-    #path_to_gt_imgs = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/test/rgb'
-    path_to_save_gt = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/test/'
-    gtExtractor.extract_gt('biwi', path_to_save_gt=path_to_save_gt)
+    # gtExtractor = GtExtractor(path_to_model)
+    # gtExtractor.extract_gt('biwi', path_to_save_gt=path_to_save_gt)
 
     retrainer = Retrainer(path_to_model)
+    retrainer.retrain('biwi_depth', path_to_gt=path_to_save_gt, batch_size=64, epochs=1000)
 
-    #path_to_rt_imgs = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/test/depth'
+    # check performance internally for depth
 
-    retrainer.retrain('biwi_depth', path_to_gt=path_to_save_gt)
 
+    # check cross-modal performance
 
     pass
 

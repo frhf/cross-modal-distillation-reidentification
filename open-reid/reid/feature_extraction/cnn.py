@@ -13,6 +13,7 @@ def extract_cnn_feature(model, inputs, modules=None):
     # evaluation mode
     model.eval()
     model.cuda()
+
     inputs = to_torch(inputs)
     inputs = Variable(inputs, volatile=True)
     #Q: What are modules?

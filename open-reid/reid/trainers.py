@@ -20,7 +20,7 @@ class BaseTrainer(object):
         self.model = model
         self.criterion = criterion
 
-    def train(self, epoch, data_loader, optimizer, print_freq=1):
+    def train(self, epoch, data_loader, optimizer, print_freq=1, writer=None):
         self.model.train()
 
         batch_time = AverageMeter()
@@ -45,7 +45,10 @@ class BaseTrainer(object):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if prec != 0:
+            if writer is not None:
+                writer.add_scalar('loss', loss, i+epoch*len(data_loader))
+
+            if prec1 != 0:
                 if (i + 1) % print_freq == 0:
                     print('Epoch: [{}][{}/{}]\t'
                           'Time {:.3f} ({:.3f})\t'
@@ -64,12 +67,11 @@ class BaseTrainer(object):
                           'Time {:.3f} ({:.3f})\t'
                           'Data {:.3f} ({:.3f})\t'
                           'Loss {:.3f} ({:.3f})\t'
-                          'Prec {:.2%} ({:.2%})\t'
+
                           .format(epoch, i + 1, len(data_loader),
                                   batch_time.val, batch_time.avg,
                                   data_time.val, data_time.avg,
-                                  losses.val, losses.avg,
-                                  precisions.val, precisions.avg))
+                                  losses.val, losses.avg))
 
     def _parse_data(self, inputs):
         raise NotImplementedError

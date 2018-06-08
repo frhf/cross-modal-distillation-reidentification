@@ -40,23 +40,44 @@ class GtExtractor:
 
         root = data_dir + '/' + name
 
-        dataset= datasets.create(name, root, split_id=0)
+        dataset = datasets.create(name, root, split_id=0)
         dataset_train = [idx for idx, _, _ in dataset.train]
+        dataset_val = [idx for idx, _, _ in dataset.val]
 
         self.model = self.model.cuda()
         self.model.eval()
 
-        gt_list = []
-        for img_path in dataset_train:
-            img = image_loader(root + '/' + img_path)
+        # save groundtruth of training data
+        gt_train = []
+        for idx, img_path in enumerate(dataset_train):
+            img = image_loader(root + '/images/' + img_path)
             out = self.model(img)
             out = out.cpu().detach().numpy()[0]
-            gt_list.append([img_path, out])
+            gt_train.append([img_path, out])
 
-        with open(path_to_save_gt + 'gt.txt', 'wb') as f:
-            pickle.dump(gt_list, f)
+            if idx % 50 == 0:
+               print(img_path)
 
-        return gt_list
+        with open(path_to_save_gt + 'gt_train.txt', 'wb') as f:
+            pickle.dump(gt_train, f)
+
+        gt_val = []
+        # save groundtruth of validation data
+        for idx, img_path in enumerate(dataset_val):
+            img = image_loader(root + '/images/' + img_path)
+
+            # TODO: Include batch processing
+            out = self.model(img)
+            out = out.cpu().detach().numpy()[0]
+            gt_val.append([img_path, out])
+
+            if idx % 50 == 0:
+               print(img_path)
+
+        with open(path_to_save_gt + 'gt_val.txt', 'wb') as f:
+            pickle.dump(gt_val, f)
+
+        return gt_train, gt_val
 
 
 def image_loader(image_name):

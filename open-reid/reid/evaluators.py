@@ -8,6 +8,7 @@ import sys
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
 
+from torch.autograd import Variable
 
 from evaluation_metrics import cmc, mean_ap
 from feature_extraction import extract_cnn_feature
@@ -19,37 +20,42 @@ def extract_features(model, data_loader, print_freq=1, metric=None):
     model.eval()
 
     # time for dataprocessing
-    batch_time = AverageMeter()
-    # updates for data loading
-    data_time = AverageMeter()
+    # batch_time = AverageMeter()
+    # # updates for data loading
+    # data_time = AverageMeter()
 
     # dictionary which remembers which input after which was given
     features = OrderedDict()
     labels = OrderedDict()
 
-    end = time.time()
+    # end = time.time()
     for i, (imgs, fnames, pids, _) in enumerate(data_loader):
         # updates for data loading
-        data_time.update(time.time() - end)
-
+        # data_time.update(time.time() - end)
+        imgs_c = Variable(imgs, requires_grad=False)
         # evaluates model
-        outputs = extract_cnn_feature(model, imgs)
+        # outputs = extract_cnn_feature(model, imgs)
+        outputs = model(imgs_c)
+        outputs.data.cpu()
+        imgs_c = None
+        imgs = None
+
 
         for fname, output, pid in zip(fnames, outputs, pids):
             features[fname] = output
             labels[fname] = pid
 
         # time for dataprocessing
-        batch_time.update(time.time() - end)
-        end = time.time()
+        # batch_time.update(time.time() - end)
+        # end = time.time()
 
-        if (i + 1) % print_freq == 0:
-            print('Extract Features: [{}/{}]\t'
-                  'Time {:.3f} ({:.3f})\t'
-                  'Data {:.3f} ({:.3f})\t'
-                  .format(i + 1, len(data_loader),
-                          batch_time.val, batch_time.avg,
-                          data_time.val, data_time.avg))
+        # if (i + 1) % print_freq == 0:
+        # print('Extract Features: [{}/{}]\t'
+        #           'Time {:.3f} ({:.3f})\t'
+        #           'Data {:.3f} ({:.3f})\t'
+        #           .format(i + 1, len(data_loader),
+        #                   batch_time.val, batch_time.avg,
+        #                   data_time.val, data_time.avg))
 
     return features, labels
 
@@ -134,3 +140,27 @@ class Evaluator(object):
         features, _ = extract_features(self.model, data_loader, print_freq)
         distmat = pairwise_distance(features, query, gallery, metric=metric)
         return evaluate_all(distmat, query=query, gallery=gallery)
+
+    def evaluate_retrain(self, val_loader_ret, val_loader_int, criterion, epoch, query, gallery, writer=None):
+
+        self.model.eval()
+        overall_loss = 0
+        for batch in val_loader_ret:
+            imgs = Variable(batch[0].cuda(), requires_grad=False)
+            out = self.model(imgs)
+            target = Variable(batch[2].cuda(), requires_grad=False)
+            loss = Variable(criterion(out, target), requires_grad=False)
+            overall_loss += loss
+
+            # free memory
+            imgs = None
+            out = None
+            target = None
+
+        overall_loss_n = overall_loss.cpu().numpy()
+        print('Validation Loss: ' + str(overall_loss_n))
+
+        self.evaluate(val_loader_int, query, gallery, 1)
+
+        if writer is not None:
+            writer.add_scalar('ValidationLoss', overall_loss_n, epoch)
