@@ -12,6 +12,7 @@ from .utils.meters import AverageMeter
 def extract_features(model, data_loader, print_freq=1, metric=None):
     # evaluation mode for model
     model.eval()
+    model.cuda()
 
     # time for dataprocessing
     batch_time = AverageMeter()

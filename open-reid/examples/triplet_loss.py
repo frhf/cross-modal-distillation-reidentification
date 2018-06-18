@@ -24,6 +24,7 @@ from utils.data.preprocessor import Preprocessor
 from utils.data.sampler import RandomIdentitySampler
 from utils.logging import Logger
 from utils.serialization import load_checkpoint, save_checkpoint
+from tensorboardX import SummaryWriter
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
@@ -57,19 +58,19 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
         sampler=RandomIdentitySampler(train_set, num_instances),
-        pin_memory=True, drop_last=True)
+        pin_memory=False, drop_last=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
                      transform=test_transformer),
-        batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=True)
+        batch_size=batch_size*2, num_workers=workers,
+        shuffle=True, pin_memory=False)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
                      root=dataset.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=True)
+        shuffle=False, pin_memory=False)
 
     return dataset, num_classes, train_loader, val_loader, test_loader
 
@@ -80,11 +81,15 @@ def main(args):
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
+
+
     # Redirect print to both console and log file
-    if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
+    # if not args.evaluate:
+    #     sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     print(args)
+    # writer for summary
+    writer = SummaryWriter(args.logs_dir_tb)
 
     # Create data loaders
     # num instances is instances in mini batch
@@ -109,6 +114,7 @@ def main(args):
     # bei triplet wird "hacking benoetigt
     model = models.create(args.arch, num_features=1024,
                           dropout=args.dropout, num_classes=args.features)
+
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -155,32 +161,37 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer, args.print_freq)
+        trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
+
+        if epoch % 10 == 0:
+            # top1 = evaluator.evaluate_partly(val_loader, dataset.val, dataset.val, args.print_freq,  writer, epoch, n_batches=3)
+            evaluator.evaluate_single_shot(test_loader, dataset.query, dataset.gallery, 1, writer,
+                                           epoch, osp.join(args.data_dir, args.dataset), args.height, args.width)
+
+
         if epoch < args.start_save:
             continue
-            print("no ev and save in epoch: " + str(args.epochs))
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, args.print_freq)
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
         print("is_best: " + str(is_best))
-        if is_best and epoch >= int(args.epochs/2):
+        if is_best:
             print("epoch: " + str(epoch))
             save_checkpoint({
                 'state_dict': model.module.state_dict(),
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
-            }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+            }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    print('Test with best model:')
-    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
-    model.module.load_state_dict(checkpoint['state_dict'])
-    metric.train(model, train_loader)
-    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    # print('Test with best model:')
+    # checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
+    # model.module.load_state_dict(checkpoint['state_dict'])
+    # metric.train(model, train_loader)
+    # evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
 
 
 if __name__ == '__main__':
@@ -232,7 +243,9 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
+                        default='/export/livia/data/FHafner/data')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
+    parser.add_argument('--logs-dir-tb', type=str, metavar='PATH',
+                        default="/export/livia/home/vision/FHafner/masterthesis/tensorboard_logdir")
     main(parser.parse_args())

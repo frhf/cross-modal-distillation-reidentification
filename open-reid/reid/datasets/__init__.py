@@ -10,6 +10,8 @@ from .biwi import Biwi
 from .biwi_depth import Biwi_depth
 from .biwi_depth_mask import Biwi_depth_mask
 from .somaset import Somaset
+from .tum import Tum
+from .tum_depth import Tum_depth
 
 __factory = {
     'viper': VIPeR,
@@ -20,7 +22,9 @@ __factory = {
     'biwi': Biwi,
     'biwi_depth': Biwi_depth,
     'biwi_depth_mask': Biwi_depth_mask,
-    'somaset': Somaset
+    'somaset': Somaset,
+    'tum': Tum,
+    'tum_depth': Tum_depth
 }
 
 

@@ -24,6 +24,7 @@ from utils.data.preprocessor import Preprocessor
 from utils.data.sampler import RandomIdentitySampler
 from utils.logging import Logger
 from utils.serialization import load_checkpoint, save_checkpoint
+from tensorboardX import SummaryWriter
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
@@ -56,19 +57,19 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers,
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=True, pin_memory=True, drop_last=True)
+        shuffle=True, pin_memory=False, drop_last=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=True)
+        shuffle=False, pin_memory=False)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
                      root=dataset.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=True)
+        shuffle=False, pin_memory=False)
 
     return dataset, num_classes, train_loader, val_loader, test_loader
 
@@ -80,10 +81,13 @@ def main(args):
 
     # Redirect print to both console and log file
     # evaluation only
-    if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
+    # if not args.evaluate:
+    #     sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
     print(args)
+
+    # writer for summary
+    writer = SummaryWriter('/export/livia/home/vision/FHafner/masterthesis/tensorboard_logdir')
 
     # Create data loaders
     if args.height is None or args.width is None:
@@ -156,10 +160,10 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch, train_loader, optimizer, args.print_freq)
+        trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
         if epoch < args.start_save:
             continue
-        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, args.print_freq)
+        top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, args.print_freq, writer, epoch)
 
         is_best = top1 > best_top1
         best_top1 = max(top1, best_top1)
@@ -170,7 +174,7 @@ def main(args):
                 'state_dict': model.module.state_dict(),
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
-            }, is_best, fpath=osp.join(args.logs_dir, 'checkpoint.pth.tar'))
+            }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
@@ -226,7 +230,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default=osp.join(working_dir, 'data'))
+                        default='/export/livia/data/FHafner/data')#osp.join(working_dir, 'data'))
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
     main(parser.parse_args())

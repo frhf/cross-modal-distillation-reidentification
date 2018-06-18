@@ -78,7 +78,7 @@ class Retrainer:
                                          weight_decay=5e-4,
                                          nesterov=True)
 
-        #metric = DistanceMetric(algorithm='euclidean')
+        # metric = DistanceMetric(algorithm='euclidean')
 
         trainer = TrainerRetrainer(self.model, criterion)
 
@@ -89,8 +89,18 @@ class Retrainer:
 
             # evaluation
             # if epoch % 3 == 0:
-            evaluator.evaluate_retrain(val_loader_ret, val_loader_int, criterion, epoch, dataset.val, dataset.val,
+            if dataset.meta['name'] == 'biwi' or dataset.meta['name'] == 'biwi_depth' \
+                    or dataset.meta['name'] == 'biwi_depth_mask':
+                gallery = [i for i in dataset.val if i[2] == 0]
+                query = [i for i in dataset.val if i[2] == 1 or i[2] == 2]
+            else:
+                gallery = dataset.val
+                query = dataset.val
+
+            evaluator.evaluate_retrain(val_loader_ret, val_loader_int, criterion, epoch, gallery, query,
                                        writer=writer)
+
+	    # evaluator.evaluate_cm(val_loader_ret, val_loader_int
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
