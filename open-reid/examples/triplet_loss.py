@@ -165,7 +165,7 @@ def main(args):
 
         if epoch % 10 == 0:
             # top1 = evaluator.evaluate_partly(val_loader, dataset.val, dataset.val, args.print_freq,  writer, epoch, n_batches=3)
-            evaluator.evaluate_single_shot(test_loader, dataset.query, dataset.gallery, 1, writer,
+            top1 = evaluator.evaluate_single_shot(test_loader, dataset.query, dataset.gallery, 1, writer,
                                            epoch, osp.join(args.data_dir, args.dataset), args.height, args.width)
 
 

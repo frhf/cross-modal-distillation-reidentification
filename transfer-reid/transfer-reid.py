@@ -15,18 +15,17 @@ sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/u
 
 def main():#(args):
 
-    path_to_basemodel = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/BIWI/' \
-                    'softmax_resnet18_ep1000/checkpoint.pth.tar'
-    path_to_save_gt = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/biwi/'
+    path_to_basemodel = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/TUM/triplet_resnet18_tv/model_best.pth.tar'
+    path_to_save_gt = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/tum/triplet_resnet18_tv'
 
-    # gtExtractor = GtExtractor(path_to_model)
-    # gtExtractor.extract_gt('biwi', path_to_save_gt=path_to_save_gt)
+    gtExtractor = GtExtractor(path_to_basemodel)
+    gtExtractor.extract_gt('tum', path_to_save_gt=path_to_save_gt)
 
-    path_to_retmodel = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/BIWI/' \
-                    'softmax_resnet18_ep1000/checkpoint_ret.pth.tar'
-
-    retrainer = Retrainer(path_to_model)
-    retrainer.retrain('biwi_depth', path_to_gt=path_to_save_gt, batch_size=64, epochs=1000, combine_trainval=True, path_to_retmodel)
+    # path_to_retmodel = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/BIWI/' \
+    #                 'softmax_resnet18_ep1000/checkpoint_ret.pth.tar'
+    #
+    # retrainer = Retrainer(path_to_model)
+    # retrainer.retrain('biwi_depth', path_to_gt=path_to_save_gt, batch_size=64, epochs=1000, combine_trainval=True, path_to_retmodel)
 
     # check cross-modal performance
 

@@ -89,13 +89,13 @@ class Retrainer:
 
             # evaluation
             # if epoch % 3 == 0:
-            if dataset.meta['name'] == 'biwi' or dataset.meta['name'] == 'biwi_depth' \
-                    or dataset.meta['name'] == 'biwi_depth_mask':
-                gallery = [i for i in dataset.val if i[2] == 0]
-                query = [i for i in dataset.val if i[2] == 1 or i[2] == 2]
-            else:
-                gallery = dataset.val
-                query = dataset.val
+            # if dataset.meta['name'] == 'biwi' or dataset.meta['name'] == 'biwi_depth' \
+            #         or dataset.meta['name'] == 'biwi_depth_mask':
+            #     gallery = [i for i in dataset.val if i[2] == 0]
+            #     query = [i for i in dataset.val if i[2] == 1 or i[2] == 2]
+            # else:
+            #     gallery = dataset.val
+            #     query = dataset.val
 
             evaluator.evaluate_retrain(val_loader_ret, val_loader_int, criterion, epoch, gallery, query,
                                        writer=writer)
