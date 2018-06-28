@@ -25,4 +25,4 @@ class Tum_depth(Dataset):
             raise RuntimeError("Dataset not found or corrupted. " +
                                "You can use download=True to download it.")
 
-        self.load(load_val=True)
+        self.load(load_val=True, cams=True)

@@ -35,7 +35,12 @@ class BaseTrainer(object):
             inputs, targets = self._parse_data(inputs)
             loss, prec1 = self._forward(inputs, targets)
 
-            losses.update(loss.data[0], targets.size(0))
+            if isinstance(self.criterion, torch.nn.MSELoss):
+                loss_show = torch.sqrt(loss).sum() / len(inputs[0])
+            else:
+                loss_show = loss
+
+            losses.update(loss_show.data[0], targets.size(0))
             precisions.update(prec1, targets.size(0))
 
             optimizer.zero_grad()
@@ -46,7 +51,7 @@ class BaseTrainer(object):
             end = time.time()
 
             if writer is not None:
-                writer.add_scalar('loss', loss, i+epoch*len(data_loader))
+                writer.add_scalar('loss', loss_show, i+epoch*len(data_loader))
 
             if prec1 != 0:
                 if (i + 1) % print_freq == 0:
@@ -113,6 +118,7 @@ class TrainerRetrainer(BaseTrainer):
         return inputs, targets
 
     def _forward(self, inputs, targets):
+        self.model.train()
         inputs = inputs[0].cuda()
         outputs = self.model(inputs)
 

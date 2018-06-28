@@ -63,7 +63,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
                      transform=test_transformer),
-        batch_size=batch_size*2, num_workers=workers,
+        batch_size=batch_size, num_workers=workers,
         shuffle=True, pin_memory=False)
 
     test_loader = DataLoader(
@@ -81,7 +81,7 @@ def main(args):
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
-
+    top1 = 0
 
     # Redirect print to both console and log file
     # if not args.evaluate:
@@ -163,9 +163,9 @@ def main(args):
         adjust_lr(epoch)
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
 
-        if epoch % 10 == 0:
+        if epoch % 10 == 0 or top1 == 0:
             # top1 = evaluator.evaluate_partly(val_loader, dataset.val, dataset.val, args.print_freq,  writer, epoch, n_batches=3)
-            top1 = evaluator.evaluate_single_shot(test_loader, dataset.query, dataset.gallery, 1, writer,
+            top1 = evaluator.evaluate_single_shot(dataset.query, dataset.gallery, 1, writer,
                                            epoch, osp.join(args.data_dir, args.dataset), args.height, args.width)
 
 
@@ -182,6 +182,7 @@ def main(args):
                 'epoch': epoch + 1,
                 'best_top1': best_top1,
             }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
+            print("Model saved at: " + osp.join(args.logs_dir, 'model_best.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))

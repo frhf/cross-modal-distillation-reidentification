@@ -7,7 +7,7 @@ import sys
 from gt_extractor import GtExtractor
 from retrainer import Retrainer
 import datasets
-
+import os
 
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
@@ -15,19 +15,32 @@ sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/u
 
 def main():#(args):
 
-    path_to_basemodel = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/TUM/triplet_resnet18_tv/model_best.pth.tar'
-    path_to_save_gt = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/data/tum/triplet_resnet18_tv'
+    path_to_basemodel = '/export/livia/data/FHafner/data/logdir/tum_depth/training/triplet_resnet18_tv/' \
+                        'model_best.pth.tar'
+    path_to_save_gt = '/export/livia/data/FHafner/data/logdir/tum_depth/training/triplet_resnet18_tv/'
+    # path_to_basemodel = '//export/livia/data/FHafner/data/logdir/tum_depth/retrain/triplet_resnet18_control/' \
+    #                     'model_best.pth.tar'
+    # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/tum_depth/retrain/triplet_resnet18_control/'
 
-    gtExtractor = GtExtractor(path_to_basemodel)
-    gtExtractor.extract_gt('tum', path_to_save_gt=path_to_save_gt)
 
-    # path_to_retmodel = '/export/livia/home/vision/FHafner/masterthesis/open-reid/examples/logs/BIWI/' \
-    #                 'softmax_resnet18_ep1000/checkpoint_ret.pth.tar'
-    #
-    # retrainer = Retrainer(path_to_model)
-    # retrainer.retrain('biwi_depth', path_to_gt=path_to_save_gt, batch_size=64, epochs=1000, combine_trainval=True, path_to_retmodel)
 
-    # check cross-modal performance
+
+    # gtExtractor = GtExtractor(path_to_basemodel)
+    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='train')
+    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='val')
+    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='gallery')
+    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='query')
+
+    path_to_retmodel = '/export/livia/data/FHafner/data/logdir/tum/retraining/triplet_resnet18_tv/'
+    # path_to_retmodel = '/export/livia/data/FHafner/data/logdir/tum/training/triplet_resnet18_highreg/'
+
+
+    if not os.path.exists(path_to_retmodel):
+        os.makedirs(path_to_retmodel)
+
+    retrainer = Retrainer(path_to_basemodel, dropout=0)
+    retrainer.retrain('tum', 'tum_depth', path_to_save_gt, batch_size=64, epochs=200, combine_trainval=True,
+                      workers=3, path_to_retmodel=path_to_retmodel)
 
     pass
 

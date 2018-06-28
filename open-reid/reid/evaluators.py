@@ -154,9 +154,11 @@ def evaluate_all(distmat, query=None, gallery=None,
 
 
 class Evaluator(object):
-    def __init__(self, model):
+    def __init__(self, model, model_cm=None):
         super(Evaluator, self).__init__()
         self.model = model
+        if model_cm is not None:
+            self.model_cm = model_cm
 
     def evaluate(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, metric=None):
         features, _ = extract_features(self.model, data_loader, print_freq)
@@ -165,41 +167,47 @@ class Evaluator(object):
 
     def evaluate_retrain(self, val_loader_ret, val_loader_int, criterion, epoch, query, gallery, writer=None):
 
-        self.model.eval()
-        overall_loss = 0
-        for batch in val_loader_ret:
-            imgs = Variable(batch[0].cuda(), requires_grad=False)
-            out = self.model(imgs)
-            target = Variable(batch[2].cuda(), requires_grad=False)
-            loss = Variable(criterion(out, target), requires_grad=False)
-            overall_loss += loss
+        with torch.no_grad():
+            torch.set_num_threads(1)
+            self.model.eval()
+            overall_loss = 0
+            for i, batch in enumerate(val_loader_ret):
+                imgs = Variable(batch[0].cuda(), requires_grad=False)
+                out = self.model(imgs)
+                target = Variable(batch[2].cuda(), requires_grad=False)
+                loss = Variable(criterion(out, target), requires_grad=False)
+                loss = torch.sqrt(loss).sum()/len(imgs)
+                overall_loss += loss
 
-            # free memory
-            imgs = None
-            out = None
-            target = None
+                # free memory
+                imgs = None
+                out = None
+                target = None
 
-        overall_loss_n = overall_loss.cpu().numpy()
-        print('Validation Loss: ' + str(overall_loss_n))
+            # get average euclidean distance
+            overall_loss = overall_loss/i
+            overall_loss_n = overall_loss.cpu().numpy()
+            print('Validation Loss: ' + str(overall_loss_n))
 
-        if writer is not None:
-            writer.add_scalar('ValidationLoss', overall_loss_n, epoch)
+            if writer is not None:
+                writer.add_scalar('ValidationLoss', overall_loss_n, epoch)
 
 
-        self.evaluate(val_loader_int, query, gallery, 1, dataset, writer, epoch)
-
+        # self.evaluate(val_loader_int, query, gallery, 1, dataset, writer, epoch)
 
     def evaluate_partly(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, n_batches=None, metric=None):
         features, labels = extract_features(self.model, data_loader, print_freq, n_batches=n_batches)
         acc1 = cmc_partly(features, labels, writer, epoch)
         return acc1
 
+    def evaluate_single_shot(self, query, gallery, print_freq, writer=None, epoch=None, root=None, height=None,
+                             width=None, name2save=""):
 
-    def evaluate_single_shot(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, root=None, height=None, width=None):
+        # if len(query) != len(gallery):
+        #     query = gallery
 
         with torch.no_grad():
             torch.set_num_threads(1)
-
             self.model.eval()
 
             top1_ = []
@@ -267,18 +275,137 @@ class Evaluator(object):
             top1 = np.mean(top1_)
             top5 = np.mean(top5_)
             top10 = np.mean(top10_)
-            print("top1: " + str(top1))
-            print("top5: " + str(top5))
-            print("top10: " + str(top10))
+            print(name2save + "top1: " + str(top1))
+            print(name2save + "top5: " + str(top5))
+            print(name2save + "top10: " + str(top10))
 
 
             if writer is not None:
-                writer.add_scalar('Rank 1', top1, epoch)
-                writer.add_scalar('Rank 2', top5, epoch)
-                writer.add_scalar('Rank 5', top10, epoch)
+                writer.add_scalar(name2save + 'Rank 1', top1, epoch)
+                writer.add_scalar(name2save + 'Rank 5', top5, epoch)
+                writer.add_scalar(name2save + 'Rank 10', top10, epoch)
 
             return top1
 
+    def evaluate_one(self, query, gallery, print_freq, writer=None, epoch=None, root=None, height=None,
+                             width=None, root2=None, name2save=""):
+
+
+
+                # initialize loading and normalization
+                normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+                test_transformer = T.Compose([
+                    T.RectScale(height, width),
+                    T.ToTensor(),
+                    normalizer,
+                ])
+
+                fpath = root + '/images/' + query[0][0]
+
+                img = Image.open(fpath).convert('RGB')
+                img_t = test_transformer(img).cuda()
+                img_t = img_t.unsqueeze(0)
+
+                fpath = root2 + '/images/' + query[0][0]
+
+                img = Image.open(fpath).convert('RGB')
+                img_p = test_transformer(img).cuda()
+                img_p = img_p.unsqueeze(0)
+
+                print('retrain: ')
+                print(self.model(img_t))
+                print("orig: ")
+                print(self.model_cm(img_p))
+
+
+    def evaluate_single_shot_cm(self, query, gallery, print_freq, writer=None, epoch=None, root1=None, height=None,
+                             width=None, root2=None, name2save=""):
+
+        with torch.no_grad():
+            torch.set_num_threads(1)
+
+            top1_ = []
+            top5_ = []
+            top10_ = []
+
+            # 10 evaluations, take average:
+            for i in range(5):
+                gal_imgs, query_imgs = get_rand_images(query, gallery)
+
+                # initialize loading and normalization
+                normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+                test_transformer = T.Compose([
+                    T.RectScale(height, width),
+                    T.ToTensor(),
+                    normalizer,
+                ])
+
+                # load gallery
+                imgs_batch = Variable().cuda()
+                for fname in gal_imgs:
+                    fpath = root1 + '/images/' + fname[0]
+
+                    img = Image.open(fpath).convert('RGB')
+                    img_t = test_transformer(img).cuda()
+                    img_t = img_t.unsqueeze(0)
+                    imgs_batch = torch.cat([imgs_batch, img_t], 0)
+
+                self.model.eval()
+                vector_gal = self.model(imgs_batch)
+
+                del img_t
+                del imgs_batch
+
+                # load query
+                imgs_batch = Variable().cuda()
+                for fname in query_imgs:
+                    fpath = root2 + '/images/' + fname[0]
+
+                    img = Image.open(fpath).convert('RGB')
+                    img_t = test_transformer(img).cuda()
+                    img_t = img_t.unsqueeze(0)
+
+                    imgs_batch = torch.cat([imgs_batch, img_t], 0)
+
+                self.model_cm.eval()
+                vector_query = self.model_cm(imgs_batch)
+
+                del img_t
+                del imgs_batch
+
+                # calc distances
+                m, n = vector_query.size(0), vector_gal.size(0)
+
+                dist = torch.pow(vector_gal, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+                       torch.pow(vector_query, 2).sum(dim=1, keepdim=True).expand(n, m).t()
+                dist.addmm_(1, -2, vector_gal, vector_query.t())
+
+                all = torch.empty(len(dist), 0)
+                all = [torch.sum(torch.stack([k < dist[i][i] for k in dist[i]])) for i in range(len(dist))]
+                all = torch.FloatTensor(all)
+
+                top1_.append(len(all[all < 1])/len(dist))
+                top5_.append(len(all[all < 6])/len(dist))
+                top10_.append(len(all[all < 11])/len(dist))
+
+            top1 = np.mean(top1_)
+            top5 = np.mean(top5_)
+            top10 = np.mean(top10_)
+            print(name2save + "top1: " + str(top1))
+            print(name2save + "top5: " + str(top5))
+            print(name2save + "top10: " + str(top10))
+
+
+            if writer is not None:
+                writer.add_scalar(name2save + 'Rank 1', top1, epoch)
+                writer.add_scalar(name2save + 'Rank 5', top5, epoch)
+                writer.add_scalar(name2save + 'Rank 10', top10, epoch)
+
+            return top1
 
 
 def cmc_partly(features,labels, writer, epoch):
