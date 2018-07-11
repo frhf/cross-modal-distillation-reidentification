@@ -12,12 +12,14 @@ sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/'
 from evaluation_metrics import accuracy
 from loss import OIMLoss, TripletLoss
 from utils.meters import AverageMeter
+import numpy as np
 
 
 class BaseTrainer(object):
     def __init__(self, model, criterion):
         super(BaseTrainer, self).__init__()
         self.model = model
+        model.cuda()
         self.criterion = criterion
 
     def train(self, epoch, data_loader, optimizer, print_freq=1, writer=None):
@@ -28,11 +30,15 @@ class BaseTrainer(object):
         losses = AverageMeter()
         precisions = AverageMeter()
 
+        x = list(set([data[1] for data in data_loader.dataset.dataset]))
+        y = [n for n in range(len(x))]
+        num_dict = dict(zip(x, y))
+
         end = time.time()
         for i, inputs in enumerate(data_loader):
             data_time.update(time.time() - end)
 
-            inputs, targets = self._parse_data(inputs)
+            inputs, targets = self._parse_data(inputs, num_dict)
             loss, prec1 = self._forward(inputs, targets)
 
             if isinstance(self.criterion, torch.nn.MSELoss):
@@ -79,21 +85,25 @@ class BaseTrainer(object):
                                   losses.val, losses.avg))
 
 
-    def _parse_data(self, inputs):
+    def _parse_data(self, inputs, num_dict=None):
         raise NotImplementedError
 
     def _forward(self, inputs, targets):
         raise NotImplementedError
+
 
 # inherits from the one above
 class Trainer(BaseTrainer):
-    def _parse_data(self, inputs):
+    def _parse_data(self, inputs, num_dict=None):
         imgs, _, pids, _ = inputs
-        inputs = [Variable(imgs)]
-        targets = Variable(pids.cuda())
+        pids_np = np.array(pids)
+        pids_dict = torch.tensor([num_dict[pi] for pi in pids_np], dtype=torch.int64)
+        inputs = [Variable(imgs).cuda()]
+        targets = Variable(pids_dict.cuda())
         return inputs, targets
 
     def _forward(self, inputs, targets):
+
         outputs = self.model(*inputs)
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
             loss = self.criterion(outputs, targets)
@@ -111,7 +121,7 @@ class Trainer(BaseTrainer):
 
 # inherits from the one above
 class TrainerRetrainer(BaseTrainer):
-    def _parse_data(self, inputs):
+    def _parse_data(self, inputs, num_dict=None):
         imgs, name, enc = inputs
         inputs = [Variable(imgs)]
         targets = Variable(enc.cuda())

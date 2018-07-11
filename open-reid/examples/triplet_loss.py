@@ -1,6 +1,7 @@
 from __future__ import print_function, absolute_import
 import argparse
 import os.path as osp
+import os
 
 import numpy as np
 import sys
@@ -40,18 +41,32 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     num_classes = (dataset.num_trainval_ids if combine_trainval
                    else dataset.num_train_ids)
 
-    train_transformer = T.Compose([
-        T.RandomSizedRectCrop(height, width),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        normalizer,
-    ])
+    if name == 'tum' or name =='tum_depth':
+        train_transformer = T.Compose([
+            T.RandomSizedRectCropDepth(height, width),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            normalizer,
+        ])
 
-    test_transformer = T.Compose([
-        T.RectScale(height, width),
-        T.ToTensor(),
-        normalizer,
-    ])
+        test_transformer = T.Compose([
+            T.RectScaleDepth(height, width),
+            T.ToTensor(),
+            normalizer,
+        ])
+    else:
+        train_transformer = T.Compose([
+            T.RandomSizedRectCrop(height, width),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            normalizer,
+        ])
+
+        test_transformer = T.Compose([
+            T.RectScale(height, width),
+            T.ToTensor(),
+            normalizer,
+        ])
 
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
@@ -60,11 +75,21 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         sampler=RandomIdentitySampler(train_set, num_instances),
         pin_memory=False, drop_last=True)
 
+
     val_loader = DataLoader(
         Preprocessor(dataset.val, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=True, pin_memory=False)
+
+    # dataset.query = [i for no, i in enumerate(dataset.query) if no % 20 == 0]
+    # dataset.gallery = [i for no, i in enumerate(dataset.gallery) if no % 20 == 0]
+    #
+    # test_loader = DataLoader(
+    #     Preprocessor(list(set(query) | set(gallery)),
+    #                  root=dataset.images_dir, transform=test_transformer),
+    #     batch_size=batch_size, num_workers=workers,
+    #     shuffle=False, pin_memory=False)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
@@ -83,13 +108,7 @@ def main(args):
 
     top1 = 0
 
-    # Redirect print to both console and log file
-    # if not args.evaluate:
-    #     sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
-
     print(args)
-    # writer for summary
-    writer = SummaryWriter(args.logs_dir_tb)
 
     # Create data loaders
     # num instances is instances in mini batch
@@ -100,8 +119,8 @@ def main(args):
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
                                   (256, 128)
 
-    # args.dataset is dataset name; split = ?; data_dir is position of data; height,width is
-    # how input looks like; batch_size; workers?; combine trainval gives better accuracy
+    # args.dataset is dataset name; data_dir is position of data; height,width is
+    # how input looks like; batch_size; combine trainval gives better accuracy
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
@@ -126,6 +145,17 @@ def main(args):
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
 
+    # writer for summary
+    logs_dir_tb = args.logs_dir + '/tensorboard/'
+    if not os.path.exists(logs_dir_tb):
+        os.makedirs(logs_dir_tb)
+
+
+    # if os.listdir(logs_dir_tb) != []:
+    #     raise Exception('There is already a trained model in the directory!')
+
+    writer = SummaryWriter(logs_dir_tb)
+
     model = nn.DataParallel(model).cuda()
 
     # Distance metric
@@ -134,11 +164,29 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
+        print('Test with best model:')
+        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
+        model.module.load_state_dict(checkpoint['state_dict'])
         metric.train(model, train_loader)
-        print("Validation:")
-        evaluator.evaluate(val_loader, dataset.val, dataset.val, metric)
-        print("Test:")
-        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+        # evaluator.evaluate_single_shot(dataset.query, dataset.gallery, 1, None, 0,
+        #                                osp.join(args.data_dir, args.dataset), args.height, args.width, evaluations=5)
+        evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, None, 0,
+                                       osp.join(args.data_dir, args.dataset), args.height, args.width, evaluations=5)
+
+        # evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None)
+        return
+
+    if args.evaluate_cm:
+        # ATTENTION HANDCRAFTED FOR TUM
+        root = '/export/livia/data/FHafner/data/'
+        dataset_ret = 'tum_depth'
+        dataset_orig = 'tum'
+        print('Test with best model:')
+        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
+        model.module.load_state_dict(checkpoint['state_dict'])
+        # metric.train(model, train_loader)
+        evaluator.evaluate_single_shot_cm(dataset.query, dataset.gallery, 1, None, 0, root + dataset_ret, args.height,
+                                          args.width, root + dataset_orig, 'Cross_modal: ')
         return
 
     # Criterion
@@ -161,38 +209,50 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
+
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
 
         if epoch % 10 == 0 or top1 == 0:
             # top1 = evaluator.evaluate_partly(val_loader, dataset.val, dataset.val, args.print_freq,  writer, epoch, n_batches=3)
-            top1 = evaluator.evaluate_single_shot(dataset.query, dataset.gallery, 1, writer,
+            top1 = evaluator.evaluate_single_shot(dataset.val_gallery, dataset.val_probe, 1, writer,
                                            epoch, osp.join(args.data_dir, args.dataset), args.height, args.width)
+            # evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
+            #                                osp.join(args.data_dir, args.dataset), args.height, args.width)
 
 
         if epoch < args.start_save:
             continue
 
-        is_best = top1 > best_top1
-        best_top1 = max(top1, best_top1)
-        print("is_best: " + str(is_best))
-        if is_best:
-            print("epoch: " + str(epoch))
-            save_checkpoint({
-                'state_dict': model.module.state_dict(),
-                'epoch': epoch + 1,
-                'best_top1': best_top1,
-            }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
-            print("Model saved at: " + osp.join(args.logs_dir, 'model_best.pth.tar'))
+        if epoch % 10 == 0 or top1 == 0:
+            is_best = top1 > best_top1
+            best_top1 = max(top1, best_top1)
+            print("is_best: " + str(is_best))
+            if is_best:
+                print("epoch: " + str(epoch))
+                save_checkpoint({
+                    'state_dict': model.module.state_dict(),
+                    'epoch': epoch + 1,
+                    'best_top1': best_top1,
+                }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
+                print("Model saved at: " + osp.join(args.logs_dir, 'model_best.pth.tar'))
 
-        print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
-              format(epoch, top1, best_top1, ' *' if is_best else ''))
+            print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
+                  format(epoch, top1, best_top1, ' *' if is_best else ''))
 
-    # Final test
-    # print('Test with best model:')
+    print('Test with current model:')
     # checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     # model.module.load_state_dict(checkpoint['state_dict'])
     # metric.train(model, train_loader)
-    # evaluator.evaluate(test_loader, dataset.query, dataset.gallery, metric)
+    top1_cur = evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
+                                   osp.join(args.data_dir, args.dataset), args.height, args.width)
+
+    # Final test
+    print('Test with best model:')
+    checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
+    model.module.load_state_dict(checkpoint['state_dict'])
+    # metric.train(model, train_loader)
+    top1_best = evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
+                                   osp.join(args.data_dir, args.dataset), args.height, args.width)
 
 
 if __name__ == '__main__':
@@ -233,6 +293,8 @@ if __name__ == '__main__':
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
+    parser.add_argument('--evaluate-cm', action='store_true',
+                        help="evaluation only")
     parser.add_argument('--epochs', type=int, default=150)
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
@@ -247,6 +309,4 @@ if __name__ == '__main__':
                         default='/export/livia/data/FHafner/data')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
-    parser.add_argument('--logs-dir-tb', type=str, metavar='PATH',
-                        default="/export/livia/home/vision/FHafner/masterthesis/tensorboard_logdir")
     main(parser.parse_args())

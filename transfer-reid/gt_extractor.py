@@ -17,7 +17,9 @@ import datasets
 from utils.data.preprocessor import Preprocessor
 from torch.utils.data import DataLoader
 from utils.data import transforms as T
-
+from collections import OrderedDict
+import numpy as np
+import math
 
 
 class GtExtractor:
@@ -39,7 +41,7 @@ class GtExtractor:
         self.num_features = checkpoint['state_dict']['classifier.weight'].shape[1]
         self.num_classes = checkpoint['state_dict']['classifier.weight'].shape[0]
         self.model = models.create(self.model_arch, num_features=self.num_features,
-                          dropout=0.2, num_classes=self.num_classes)
+                          dropout=0, num_classes=self.num_classes)
         self.model.load_state_dict(checkpoint['state_dict'])
 
         normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
@@ -66,14 +68,16 @@ class GtExtractor:
         dataset = datasets.create(name, root, split_id=0)
         if extract_for == 'train':
             dataset_eval = dataset.train
-        elif extract_for == 'val':
-            dataset_eval = dataset.val
+        elif extract_for == 'val_probe':
+            dataset_eval = dataset.val_probe
+        elif extract_for == 'val_gallery':
+            dataset_eval = dataset.val_gallery
         elif extract_for == 'query':
             dataset_eval = dataset.query
         elif extract_for == 'gallery':
             dataset_eval = dataset.gallery
         else:
-            raise RuntimeError("Please choose extraction from 'train', 'val', 'query' and 'gallery'")
+            raise RuntimeError("Please choose extraction from 'train', 'val_query', 'val_galler', 'query' and 'gallery'")
 
         loader = DataLoader(
             Preprocessor(dataset_eval,
@@ -129,29 +133,89 @@ class GtExtractor:
 
             return
 
+    def extract_gt_av(self, name, name_transfer, data_dir='/export/livia/data/FHafner/data/',
+                   path_to_save_gt=None, extract_for='train', batch_size=64, workers=2):
 
-# def image_loader(image_name, height, width):
-#     """load image, returns cuda tensor"""
-#     torch.set_num_threads(1)
-#
-#     # initialize loading and normalization
-#     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
-#                              std=[0.229, 0.224, 0.225])
-#
-#     test_transformer = T.Compose([
-#         T.RectScale(height, width),
-#         T.ToTensor(),
-#         normalizer,
-#     ])
-#
-#     img = Image.open(image_name).convert('RGB')
-#     img_t = test_transformer(img).cuda()
-#     img_t = img_t.unsqueeze(0)
-#
-#     return img_t
-    # loader = transforms.Compose([transforms.ToTensor()])
-    # image = Image.open(image_name)
-    # image = loader(image).float()
-    # image = Variable(image, requires_grad=True)
-    # image = image.unsqueeze(0)  # this is for VGG, may not be needed for ResNet
-    # return image.cuda()
+        root = data_dir + '/' + name
+        dataset = datasets.create(name, root, split_id=0)
+
+        if extract_for == 'train':
+            dataset_eval = dataset.train
+        elif extract_for == 'val':
+            dataset_eval = dataset.val_probe + dataset.val_gallery
+            dataset_eval = list(OrderedDict.fromkeys(dataset_eval))
+        elif extract_for == 'query':
+            dataset_eval = dataset.query + dataset.gallery
+            dataset_eval = list(OrderedDict.fromkeys(dataset_eval))
+
+
+
+        loader = DataLoader(
+            Preprocessor(dataset_eval,
+                         root=dataset.images_dir, transform=self.test_transformer),
+            batch_size=batch_size, num_workers=workers,
+            shuffle=False, pin_memory=False)
+
+        with torch.no_grad():
+            self.model.eval()
+            self.model.cuda()
+            torch.set_num_threads(1)
+
+            gt_eval = []
+            for i, inputs in enumerate(loader):
+                if i%20 == 0:
+                    print(i)
+                person = inputs[2]
+                inputs = inputs[0].cuda()
+                outputs = self.model(inputs)
+                outputs = outputs.cpu().detach().numpy()
+                gt_eval += [[person, output] for person, output in zip(person, outputs)]
+
+        dict_ ={}
+        for idxs in dataset.split[extract_for]:
+            # attention idxs in
+            if name == 'tum' or name == 'tum_depth':
+                idxs -= 1
+
+            idx = [int(ex[0]) == idxs for ex in gt_eval]
+            tensrs = np.array([part[1] for i, part in enumerate(gt_eval) if idx[i] == True])
+            mean_ = np.mean(tensrs, axis=0)
+            # print (idxs)
+            # if math.isnan(mean_):
+            #     pass
+
+            dict_[idxs] = mean_
+            mean_ = None
+            tensrs = None
+
+        root = data_dir + '/' + name_transfer
+        dataset = datasets.create(name_transfer, root, split_id=0)
+
+        if extract_for == 'train':
+            new_gt = [[gt[0], dict_[gt[1]]] for gt in dataset.train]
+            with open(path_to_save_gt + '/gt_' + extract_for + '.txt', 'wb') as f:
+                pickle.dump(new_gt, f)
+
+        elif extract_for == 'val':
+            gt_val_probe = [[gt[0], dict_[gt[1]]] for gt in dataset.val_probe]
+            gt_val_gallery = [[gt[0], dict_[gt[1]]] for gt in dataset.val_gallery]
+
+            with open(path_to_save_gt + '/gt_val_probe.txt', 'wb') as f:
+                pickle.dump(gt_val_probe, f)
+
+            with open(path_to_save_gt + '/gt_val_gallery.txt', 'wb') as f:
+                pickle.dump(gt_val_gallery, f)
+
+        elif extract_for == 'query':
+            gt_query = [[gt[0], dict_[gt[1]]] for gt in dataset.query]
+            gt_gallery = [[gt[0], dict_[gt[1]]] for gt in dataset.gallery]
+
+            with open(path_to_save_gt + '/gt_query.txt', 'wb') as f:
+                pickle.dump(gt_query, f)
+
+            with open(path_to_save_gt + '/gt_gallery.txt', 'wb') as f:
+                pickle.dump(gt_gallery, f)
+
+        pass
+        
+

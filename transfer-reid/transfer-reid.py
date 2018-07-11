@@ -8,39 +8,84 @@ from gt_extractor import GtExtractor
 from retrainer import Retrainer
 import datasets
 import os
+import os.path as osp
 
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
 
 
-def main():#(args):
+def main():
 
-    path_to_basemodel = '/export/livia/data/FHafner/data/logdir/tum_depth/training/triplet_resnet18_tv/' \
-                        'model_best.pth.tar'
-    path_to_save_gt = '/export/livia/data/FHafner/data/logdir/tum_depth/training/triplet_resnet18_tv/'
+    # path_to_basemodel = logdir + 'sysu_ir/train/triplet_resnet18/model_best.pth.tar'
+    # path_to_save_gt = logdir + 'sysu_ir/train/triplet_resnet18/'
+    # path_to_basemodel = logdir + 'sysu/triplet_resnet18/model_best.pth.tar'
+    # path_to_save_gt = logdir + 'sysu/triplet_resnet18/'
+
+    # TUM
     # path_to_basemodel = '//export/livia/data/FHafner/data/logdir/tum_depth/retrain/triplet_resnet18_control/' \
     #                     'model_best.pth.tar'
     # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/tum_depth/retrain/triplet_resnet18_control/'
 
+    # SYSU
+    # path_to_basemodel = '/export/livia/data/FHafner/data/logdir/sysu/triplet_resnet18/' \
+    #                  'model_best.pth.tar'
+    # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/sysu/triplet_resnet18/'
+    #
+    # SYSU_IR
+    # path_to_basemodel = '/export/livia/data/FHafner/data/logdir/sysu_ir/triplet_resnet18/' \
+    #                  'model_best.pth.tar'
+    # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/sysu_ir/triplet_resnet18/'
+
+    from_ = 'tum_depth'
+    to_ = 'tum'
+    # from_ = 'sysu_ir'
+    # to_ = 'sysu'
+
+    logdir = '/export/livia/data/FHafner/data/logdir/'
+
+    path_to_save_gt = osp.join(logdir, from_, 'train/triplet-resnet18/')
+    path_to_origmodel = osp.join(path_to_save_gt, 'model_best.pth.tar')
 
 
+    name = 'same_unfrozen_co_ep50/'
+    path_to_retsavemodel = osp.join(logdir, to_, 'retraining', name)
+    path_to_retstartmodel = osp.join(logdir, to_, 'train/triplet-resnet18//model_best.pth.tar')
 
-    # gtExtractor = GtExtractor(path_to_basemodel)
-    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='train')
-    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='val')
-    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='gallery')
-    # gtExtractor.extract_gt('tum_depth', path_to_save_gt=path_to_save_gt, extract_for='query')
+    if os.path.exists(path_to_retsavemodel):
+        raise Exception('There is already a trained model in the directory!')
 
-    path_to_retmodel = '/export/livia/data/FHafner/data/logdir/tum/retraining/triplet_resnet18_tv/'
-    # path_to_retmodel = '/export/livia/data/FHafner/data/logdir/tum/training/triplet_resnet18_highreg/'
+    gtExtractor = GtExtractor(path_to_origmodel)
+    # gtExtractor.extract_gt_av(from_, to_, path_to_save_gt=path_to_save_gt, extract_for='train')
+    # gtExtractor.extract_gt_av(from_, to_, path_to_save_gt=path_to_save_gt, extract_for='val')
+    # gtExtractor.extract_gt_av(from_, to_, path_to_save_gt=path_to_save_gt, extract_for='query')
 
+    gtExtractor.extract_gt(from_, path_to_save_gt=path_to_save_gt, extract_for='train')
+    gtExtractor.extract_gt(from_, path_to_save_gt=path_to_save_gt, extract_for='val_gallery')
+    gtExtractor.extract_gt(from_, path_to_save_gt=path_to_save_gt, extract_for='val_probe')
+    gtExtractor.extract_gt(from_, path_to_save_gt=path_to_save_gt, extract_for='gallery')
+    gtExtractor.extract_gt(from_, path_to_save_gt=path_to_save_gt, extract_for='query')
+    #
+    # path_to_retmodel = logdir + 'sysu/retraining/triplet_resnet18_frombase/model_best.pth.tar'
+    # # path_to_retmodel = logdir + 'sysu_ir/retraining/triplet_resnet18/model_best.pth.tar'
+    #
+    #
+    # # path_to_retmodel = '/export/livia/data/FHafner/data/logdir/tum/training/triplet_resnet18_highreg/'
+    # # path_to_retmodel = '/export/livia/data/FHafner/data/logdir/sysu/retraining/triplet_resnet18'
+    # # path_to_retmodel = '/export/livia/data/FHafner/data/logdir/sysu_ir/retraining/triplet_resnet18'
+    #
+    # path_to_startmodel = '/export/livia/data/FHafner/data/logdir/sysu/triplet_resnet18/model_best.pth.tar'
 
-    if not os.path.exists(path_to_retmodel):
-        os.makedirs(path_to_retmodel)
+    if not os.path.exists(path_to_retsavemodel):
+        os.makedirs(path_to_retsavemodel)
 
-    retrainer = Retrainer(path_to_basemodel, dropout=0)
-    retrainer.retrain('tum', 'tum_depth', path_to_save_gt, batch_size=64, epochs=200, combine_trainval=True,
-                      workers=3, path_to_retmodel=path_to_retmodel)
+    retrainer = Retrainer(path_to_origmodel, dropout=0.3)
+    # retrainer = Retrainer(path_to_retstartmodel, path_to_origmodel, dropout=0.3, freeze_model=True)
+    # retrainer = Retrainer(path_to_retmodel, path_to_basemodel, dropout=0.3 freeze_model=True)
+
+    retrainer.retrain(to_, from_, path_to_save_gt, batch_size=64, epochs=50, combine_trainval=False, workers=3,
+                      path_to_retmodel=path_to_retsavemodel)
+    retrainer.re_evaluate_retrain(to_, from_, path_to_save_gt, batch_size=64, combine_trainval=False,
+                               workers=3, path_to_retsavemodel=path_to_retsavemodel)
 
     pass
 

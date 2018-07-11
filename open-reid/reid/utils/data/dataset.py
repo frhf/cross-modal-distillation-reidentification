@@ -42,14 +42,17 @@ class Dataset(object):
 
     def load(self, num_val=0.3, load_val=False, cams=False, verbose=True):
         splits = read_json(osp.join(self.root, 'splits.json'))
+
         if self.split_id >= len(splits):
             raise ValueError("split_id exceeds total splits {}"
                              .format(len(splits)))
+
         self.split = splits[self.split_id]
 
         query_pids = np.asarray(self.split['query'])
         gallery_pids = np.asarray(self.split['gallery'])
 
+        # check if relevant cameras are given
         if cams:
             self.test_cam_gallery = np.asarray(self.split['test_cam_gallery'])
             self.test_cam_probe = np.asarray(self.split['test_cam_probe'])
@@ -65,15 +68,17 @@ class Dataset(object):
             train_pids = np.asarray(self.split['train'])
             trainval_pids = np.asarray(self.split['trainval'])
 
-
+            # exception for tum
             if len(trainval_pids)==149:
                 val_pids -= 1
                 train_pids -= 1
                 trainval_pids -= 1
                 gallery_pids -= 1
                 query_pids -= 1
+
             np.random.shuffle(trainval_pids)
             num = len(trainval_pids)
+
             if isinstance(num_val, float):
                 num_val = int(round(num * num_val))
             if num_val >= num or num_val < 0:
@@ -92,10 +97,14 @@ class Dataset(object):
             train_pids = sorted(trainval_pids[:-num_val])
             val_pids = sorted(trainval_pids[-num_val:])
 
+        # cams are added here
         self.meta = read_json(osp.join(self.root, 'meta.json'))
         identities = self.meta['identities']
         self.train = _pluck(identities, train_pids, self.train_cam, relabel=False)
-        self.val = _pluck(identities, val_pids, self.train_cam, relabel=False)
+
+        self.val_probe = _pluck(identities, val_pids, self.test_cam_probe, relabel=False)
+        self.val_gallery = _pluck(identities, val_pids, self.test_cam_gallery, relabel=False)
+
         self.trainval = _pluck(identities, trainval_pids, self.train_cam, relabel=False)
         self.query = _pluck(identities, query_pids, self.test_cam_probe,)
         self.gallery = _pluck(identities, gallery_pids, self.test_cam_gallery,)
@@ -110,7 +119,7 @@ class Dataset(object):
             print("  train    | {:5d} | {:8d}"
                   .format(self.num_train_ids, len(self.train)))
             print("  val      | {:5d} | {:8d}"
-                  .format(self.num_val_ids, len(self.val)))
+                  .format(self.num_val_ids, len(self.val_probe)))
             print("  trainval | {:5d} | {:8d}"
                   .format(self.num_trainval_ids, len(self.trainval)))
             print("  query    | {:5d} | {:8d}"
