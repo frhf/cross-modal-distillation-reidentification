@@ -131,13 +131,13 @@ class Retrainer:
         evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height,
                                        width, name2save="Training data: ")
 
-        evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height, width,
-                                root2=root + dataset_orig)
-        # evaluate CM
+        # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height, width,
+        #                         root2=root + dataset_orig)
+        # # evaluate CM
         top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, 0,
                                           root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
-
-        # if epoch % 4 == 0:
+        #
+        # # if epoch % 4 == 0:
         evaluator.evaluate_validationloss(val_loader_ret, val_loader_int, criterion, 0, dataset.gallery, dataset.query,
                                        writer=writer)
 
@@ -157,8 +157,8 @@ class Retrainer:
             evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height,
                                            width, name2save="Training data: ")
 
-            evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height, width,
-                                   root2=root + dataset_orig)
+            # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height, width,
+            #                        root2=root + dataset_orig)
             # evaluate CM
             top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, epoch,
                                               root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
@@ -196,7 +196,15 @@ class Retrainer:
             get_data(dataset_orig, split_id, root, height, width, batch_size, workers, combine_trainval,
                      path_to_gt)
 
+        # reload model
+        checkpoint = load_checkpoint(path_to_retsavemodel + 'model_best.pth.tar')
+        self.model.load_state_dict(checkpoint['state_dict'])
+
         evaluator = Evaluator(self.model, self.model_orig)
+        top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, None, 0,
+                                          root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal val set: ')
+
+
         top1 = evaluator.evaluate_single_shot_cm(dataset.query, dataset_orig_.gallery, 1, None, 0,
                                           root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal test set: ')
 
@@ -213,32 +221,18 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers, combi
     normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
                               std=[0.229, 0.224, 0.225])
 
-    if name == 'tum' or name == 'tum_depth':
-        train_transformer = T.Compose([
-            T.RandomSizedRectCropDepth(height, width),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            normalizer,
-        ])
+    train_transformer = T.Compose([
+        T.RandomSizedRectCrop(height, width),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        normalizer,
+    ])
 
-        test_transformer = T.Compose([
-            T.RectScaleDepth(height, width),
-            T.ToTensor(),
-            normalizer,
-        ])
-    else:
-        train_transformer = T.Compose([
-            T.RandomSizedRectCrop(height, width),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            normalizer,
-        ])
-
-        test_transformer = T.Compose([
-            T.RectScale(height, width),
-            T.ToTensor(),
-            normalizer,
-        ])
+    test_transformer = T.Compose([
+        T.RectScale(height, width),
+        T.ToTensor(),
+        normalizer,
+    ])
 
     train_set = pickle.load(open(path_to_gt + 'gt_train.txt', "rb"))
     val_query_set = pickle.load(open(path_to_gt + 'gt_val_probe.txt', "rb"))

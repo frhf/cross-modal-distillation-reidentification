@@ -21,7 +21,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
         query_cams=None, gallery_cams=None, topk=100,
         separate_camera_set=False,
         single_gallery_shot=False,
-        first_match_break=False):
+        first_match_break=False, use_all=False):
     distmat = to_numpy(distmat)
     m, n = distmat.shape
     # Fill up default values
@@ -56,6 +56,10 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
             # Filter out samples from same camera
             # for each row the same camera gets kicked out
             valid &= (gallery_cams[indices[i]] != query_cams[i])
+
+        if use_all:
+            valid = np.ones(len(gallery_ids), dtype=bool)
+
         if not np.any(matches[i, valid]): continue
         if single_gallery_shot:
             repeat = 10
@@ -90,7 +94,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
 
 
 def mean_ap(distmat, query_ids=None, gallery_ids=None,
-            query_cams=None, gallery_cams=None):
+            query_cams=None, gallery_cams=None, use_all=False):
     distmat = to_numpy(distmat)
     m, n = distmat.shape
     # Fill up default values
@@ -114,8 +118,13 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
     aps = []
     for i in range(m):
         # Filter out the same id and same camera
+        # filtert nur die von der gleichen camera raus
         valid = ((gallery_ids[indices[i]] != query_ids[i]) |
-                 (gallery_cams[indices[i]] != query_cams[i]))
+                (gallery_cams[indices[i]] != query_cams[i]))# ATETNTNET
+
+        if use_all:
+            valid = np.ones(len(gallery_ids), dtype=bool)
+
         y_true = matches[i, valid]
         y_score = -distmat[i][indices[i]][valid]
         if not np.any(y_true): continue

@@ -21,4 +21,4 @@ class Biwi_depth(Dataset):
             raise RuntimeError("Dataset not found or corrupted. " +
                                "You can use download=True to download it.")
 
-        self.load(0.2)
+        self.load(load_val=True, cams=False)

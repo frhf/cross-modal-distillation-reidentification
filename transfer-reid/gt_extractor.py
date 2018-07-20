@@ -59,7 +59,10 @@ class GtExtractor:
         ])
 
     def extract_gt(self, name, data_dir='/export/livia/data/FHafner/data/',
-                   path_to_save_gt=None, extract_for='train', batch_size=64, workers=2):
+                   path_to_save_gt=None, extract_for='train', save_as=None, batch_size=64, workers=2):
+
+        if save_as is None:
+            save_as = extract_for
 
         root = data_dir + '/' + name
 
@@ -99,37 +102,8 @@ class GtExtractor:
                 gt_eval += [[name, output] for name, output in zip(names, outputs)]
 
 
-            with open(path_to_save_gt + '/gt_' + extract_for + '.txt', 'wb') as f:
+            with open(path_to_save_gt + '/gt_' + save_as + '.txt', 'wb') as f:
                 pickle.dump(gt_eval, f)
-
-            # root = data_dir + '/' + name
-            #
-            # # if self.model_arch == 'inception':
-            # #     height, width = (256, 128)
-            # # else:
-            # #     height, width = (144, 56)
-            #
-            #
-            # self.model = self.model.cuda()
-            # self.model.eval()
-            #
-            # # save groundtruth of query data
-            # gt_query = []
-            # for idx, img_path in enumerate(dataset_eval):
-            #     img = image_loader(root + '/images/' + img_path, height, width)
-            #
-            #     # TODO: Include batch processing
-            #     out = self.model(img)
-            #     out = out.cpu().detach().numpy()[0]
-            #     gt_query.append([img_path, out])
-            #
-            #     if idx % 200 == 0:
-            #         print(img_path)
-            #
-            # with open(path_to_save_gt + 'gt_query.txt', 'wb') as f:
-            #     pickle.dump(gt_query, f)
-            #
-            # del gt_query
 
             return
 

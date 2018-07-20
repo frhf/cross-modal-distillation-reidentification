@@ -30,9 +30,13 @@ class BaseTrainer(object):
         losses = AverageMeter()
         precisions = AverageMeter()
 
-        x = list(set([data[1] for data in data_loader.dataset.dataset]))
-        y = [n for n in range(len(x))]
-        num_dict = dict(zip(x, y))
+        # dirty solution to problem that data in retraining is different
+        if not isinstance(data_loader.dataset.dataset[0][1], np.ndarray):
+            x = list(set([data[1] for data in data_loader.dataset.dataset]))
+            y = [n for n in range(len(x))]
+            num_dict = dict(zip(x, y))
+        else:
+            num_dict = None
 
         end = time.time()
         for i, inputs in enumerate(data_loader):

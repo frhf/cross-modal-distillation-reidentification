@@ -41,32 +41,32 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     num_classes = (dataset.num_trainval_ids if combine_trainval
                    else dataset.num_train_ids)
 
-    if name == 'tum' or name =='tum_depth':
-        train_transformer = T.Compose([
-            T.RandomSizedRectCropDepth(height, width),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            normalizer,
-        ])
+    # if name == 'tum' or name =='tum_depth':
+    #     train_transformer = T.Compose([
+    #         T.RandomSizedRectCropDepth(height, width),
+    #         T.RandomHorizontalFlip(),
+    #         T.ToTensor(),
+    #         normalizer,
+    #     ])
+    #
+    #     test_transformer = T.Compose([
+    #         T.RectScaleDepth(height, width),
+    #         T.ToTensor(),
+    #         normalizer,
+    #     ])
+    # else:
+    train_transformer = T.Compose([
+        T.RandomSizedRectCrop(height, width),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        normalizer,
+    ])
 
-        test_transformer = T.Compose([
-            T.RectScaleDepth(height, width),
-            T.ToTensor(),
-            normalizer,
-        ])
-    else:
-        train_transformer = T.Compose([
-            T.RandomSizedRectCrop(height, width),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            normalizer,
-        ])
-
-        test_transformer = T.Compose([
-            T.RectScale(height, width),
-            T.ToTensor(),
-            normalizer,
-        ])
+    test_transformer = T.Compose([
+        T.RectScale(height, width),
+        T.ToTensor(),
+        normalizer,
+    ])
 
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
@@ -77,7 +77,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
 
 
     val_loader = DataLoader(
-        Preprocessor(dataset.val, root=dataset.images_dir,
+        Preprocessor(dataset.val_gallery + dataset.val_probe, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=True, pin_memory=False)
@@ -105,6 +105,8 @@ def main(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
+
+    use_all = False
 
     top1 = 0
 
@@ -145,35 +147,18 @@ def main(args):
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
 
-    # writer for summary
-    logs_dir_tb = args.logs_dir + '/tensorboard/'
-    if not os.path.exists(logs_dir_tb):
-        os.makedirs(logs_dir_tb)
-
-
-    # if os.listdir(logs_dir_tb) != []:
-    #     raise Exception('There is already a trained model in the directory!')
-
-    writer = SummaryWriter(logs_dir_tb)
-
-    model = nn.DataParallel(model).cuda()
-
-    # Distance metric
-    metric = DistanceMetric(algorithm=args.dist_metric)
-
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
         print('Test with best model:')
-        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
-        model.module.load_state_dict(checkpoint['state_dict'])
-        metric.train(model, train_loader)
         # evaluator.evaluate_single_shot(dataset.query, dataset.gallery, 1, None, 0,
         #                                osp.join(args.data_dir, args.dataset), args.height, args.width, evaluations=5)
-        evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, None, 0,
-                                       osp.join(args.data_dir, args.dataset), args.height, args.width, evaluations=5)
-
-        # evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None)
+        # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
+        #                    calc_cmc=True)
+        evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
+                                  metric=None, calc_cmc=False, use_all=use_all)
+        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+                           calc_cmc=True, use_all=use_all)
         return
 
     if args.evaluate_cm:
@@ -185,9 +170,26 @@ def main(args):
         checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
         model.module.load_state_dict(checkpoint['state_dict'])
         # metric.train(model, train_loader)
-        evaluator.evaluate_single_shot_cm(dataset.query, dataset.gallery, 1, None, 0, root + dataset_ret, args.height,
+        evaluator.evaluate_single_shot_cm(dataset.query, dataset.gallery, 1, writer, 0, root + dataset_ret, args.height,
                                           args.width, root + dataset_orig, 'Cross_modal: ')
         return
+
+
+    # writer for summary
+    logs_dir_tb = args.logs_dir + '/tensorboard/'
+    if not os.path.exists(logs_dir_tb):
+        os.makedirs(logs_dir_tb)
+
+    # if os.listdir(logs_dir_tb) != []:
+    #     raise Exception('There is already a trained model in the directory!')
+
+    writer = SummaryWriter(logs_dir_tb)
+
+    model = nn.DataParallel(model).cuda()
+
+    # Distance metric
+    metric = DistanceMetric(algorithm=args.dist_metric)
+
 
     # Criterion
     criterion = TripletLoss(margin=args.margin).cuda()
@@ -213,11 +215,9 @@ def main(args):
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
 
         if epoch % 10 == 0 or top1 == 0:
-            # top1 = evaluator.evaluate_partly(val_loader, dataset.val, dataset.val, args.print_freq,  writer, epoch, n_batches=3)
-            top1 = evaluator.evaluate_single_shot(dataset.val_gallery, dataset.val_probe, 1, writer,
-                                           epoch, osp.join(args.data_dir, args.dataset), args.height, args.width)
-            # evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
-            #                                osp.join(args.data_dir, args.dataset), args.height, args.width)
+
+            top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer, epoch,
+                                      metric=None, calc_cmc=True, use_all=use_all)
 
 
         if epoch < args.start_save:
@@ -239,20 +239,15 @@ def main(args):
             print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
                   format(epoch, top1, best_top1, ' *' if is_best else ''))
 
-    print('Test with current model:')
-    # checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
-    # model.module.load_state_dict(checkpoint['state_dict'])
-    # metric.train(model, train_loader)
-    top1_cur = evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
-                                   osp.join(args.data_dir, args.dataset), args.height, args.width)
-
     # Final test
-    print('Test with best model:')
+    # print('Test with best model:')
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     model.module.load_state_dict(checkpoint['state_dict'])
-    # metric.train(model, train_loader)
-    top1_best = evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
-                                   osp.join(args.data_dir, args.dataset), args.height, args.width)
+    print(checkpoint['epoch'])
+    evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
+                       calc_cmc=True, use_all=use_all)
+    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+                       calc_cmc=True, use_all=use_all)
 
 
 if __name__ == '__main__':

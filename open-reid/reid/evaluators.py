@@ -26,6 +26,7 @@ import scipy.io as sio
 # evaluates NN and saves time for doing so
 def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=None):
     # evaluation mode for model
+    model.cuda()
     model.eval()
 
     if n_batches is None:
@@ -59,7 +60,7 @@ def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=No
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if (i + 1) % print_freq == 0:
+        if (i + 1) % 100 == 0:
             print('Extract Features: [{}/{}]\t'
                   'Time {:.3f} ({:.3f})\t'
                   'Data {:.3f} ({:.3f})\t'
@@ -103,7 +104,7 @@ def pairwise_distance(features, query=None, gallery=None, metric=None):
 def evaluate_all(distmat, query=None, gallery=None,
                  query_ids=None, gallery_ids=None,
                  query_cams=None, gallery_cams=None,
-                 cmc_topk=(1, 2, 5), writer=None, epoch=None):
+                 cmc_topk=(1, 5, 10), writer=None, epoch=None, calc_cmc=False, use_all=False):
     if query is not None and gallery is not None:
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
@@ -115,45 +116,47 @@ def evaluate_all(distmat, query=None, gallery=None,
 
     # Compute mean AP
     beg = time.time()
-    mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams)
+    mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams, use_all=use_all)
     print('Mean AP: {:4.1%}'.format(mAP))
-    print("mAP: " + str(time.time() - beg))
+    # print("mAP: " + str(time.time() - beg))
 
-    # Compute all kinds of CMC scores
-    cmc_configs = {
-        # 'allshots': dict(separate_camera_set=False,
-        #                  single_gallery_shot=False,
-        #                  first_match_break=False),
-        'cuhk03': dict(separate_camera_set=True,
-                       single_gallery_shot=True,
-                       first_match_break=False),
-        # 'market1501': dict(separate_camera_set=False,
-        #                    single_gallery_shot=False,
-        #                    first_match_break=True)}
-    }
-    cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
-                            query_cams, gallery_cams, **params)
-                  for name, params in cmc_configs.items()}
+    if calc_cmc:
+        # Compute all kinds of CMC scores
+        cmc_configs = {
+            # 'allshots': dict(separate_camera_set=False,
+            #                  single_gallery_shot=False,
+            #                  first_match_break=False),
+            'cuhk03': dict(separate_camera_set=True,
+                           single_gallery_shot=True,
+                           first_match_break=False,
+                           use_all = use_all),
+            # 'market1501': dict(separate_camera_set=False,
+            #                    single_gallery_shot=False,
+            #                    first_match_break=True)}
+        }
+        cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
+                                query_cams, gallery_cams, **params)
+                      for name, params in cmc_configs.items()}
 
-    #print('CMC Scores{:>12}{:>12}{:>12}'
-     #     .format('allshots', 'cuhk03', 'market1501'))
-    print('CMC Scores{:>12}'#{:>12}{:>12}'
-         .format('cuhk03')) #'allshots', 'cuhk03', 'market1501'))
-    for k in cmc_topk:
-        print('  top-{:<4}{:12.1%}'#{:12.1%}{:12.1%}'
-              .format(k, #cmc_scores['allshots'][k - 1],
-                      cmc_scores['cuhk03'][k - 1]))#,
-                      #cmc_scores['market1501'][k - 1]))
-
+        #print('CMC Scores{:>12}{:>12}{:>12}'
+         #     .format('allshots', 'cuhk03', 'market1501'))
+        print('CMC Scores{:>12}'#{:>12}{:>12}'
+             .format('cuhk03')) #'allshots', 'cuhk03', 'market1501'))
+        for k in cmc_topk:
+            print('  top-{:<4}{:12.1%}'#{:12.1%}{:12.1%}'
+                  .format(k, #cmc_scores['allshots'][k - 1],
+                          cmc_scores['cuhk03'][k - 1]))#,
+                          #cmc_scores['market1501'][k - 1]))
+    #
     if writer is not None:
         writer.add_scalar('Rank 1', cmc_scores['cuhk03'][0], epoch)
-        writer.add_scalar('Rank 2', cmc_scores['cuhk03'][1], epoch)
         writer.add_scalar('Rank 5', cmc_scores['cuhk03'][4], epoch)
+        writer.add_scalar('Rank 10', cmc_scores['cuhk03'][9], epoch)
         writer.add_scalar('mAP', mAP, epoch)
 
     # Use the allshots cmc top-1 score for validation criterion
-    return cmc_scores['cuhk03'][0]
-
+    # return cmc_scores['cuhk03'][0]
+    return mAP
 
 class Evaluator(object):
     def __init__(self, model, model_cm=None):
@@ -165,14 +168,25 @@ class Evaluator(object):
         else:
             self.model_cm = model
 
-    def evaluate(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, metric=None):
+    def evaluate(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, metric=None, calc_cmc=False,
+                 use_all=False):
         features, _ = extract_features(self.model, data_loader, print_freq)
 
         # query = [i for no, i in enumerate(query) if no % 20 == 0]
         # gallery = [i for no, i in enumerate(gallery) if no % 20 == 0]
+        nums = np.array([i[1] for i in gallery])
+        vec = [np.where(nums == i)[0] for i in range(nums.max()) if np.where(nums == i)[0].size > 0]
+        rand_ = np.sort(np.array([np.random.choice(x, 10) for x in vec]).flatten())
+        gallery_ad = [gallery[rel] for rel in rand_]
 
-        distmat = pairwise_distance(features, query, gallery, metric=metric)
-        return evaluate_all(distmat, query=query, gallery=gallery, writer=writer, epoch=epoch)
+        nums = np.array([i[1] for i in query])
+        vec = [np.where(nums == i)[0] for i in range(nums.max()) if np.where(nums == i)[0].size > 0]
+        rand_ = np.sort(np.array([np.random.choice(x, 20) for x in vec]).flatten())
+        query_ad = [query[rel] for rel in rand_]
+
+        distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
+        return evaluate_all(distmat, query=query_ad, gallery=gallery_ad, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
+                            use_all=use_all)
 
     # evaluates validation loss
     def evaluate_validationloss(self, val_loader_ret, val_loader_int, criterion, epoch, query, gallery, writer=None):
@@ -210,13 +224,14 @@ class Evaluator(object):
 
     # evaluates single query, single gallery. Therefore, computationally cheap evaluation.
     def evaluate_single_shot(self, query, gallery, print_freq, writer=None, epoch=None, root=None, height=None,
-                             width=None, name2save="", evaluations=5, cam_q=None, cam_g=None):
+                             width=None, name2save="", evaluations=5):
 
         # if len(query) != len(gallery):
         #     query = gallery
 
         with torch.no_grad():
             torch.set_num_threads(1)
+            self.model.cuda()
             self.model.eval()
 
             top1_ = []
@@ -226,7 +241,7 @@ class Evaluator(object):
 
             # evaluations, take average:
             for i in range(evaluations):
-                gal_imgs, query_imgs = get_rand_images(query, gallery, cam_q, cam_g)
+                gal_imgs, query_imgs = get_rand_images(query, gallery)
 
                 # initialize loading and normalization
                 normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
@@ -303,7 +318,7 @@ class Evaluator(object):
                 writer.add_scalar(name2save + 'Rank 1', top1, epoch)
                 writer.add_scalar(name2save + 'Rank 5', top5, epoch)
                 writer.add_scalar(name2save + 'Rank 10', top10, epoch)
-                writer.add_scalar(name2save + 'mAP', mAP, epoch)
+                # writer.add_scalar(name2save + 'mAP', mAP, epoch)
 
             return top1
 
@@ -354,7 +369,7 @@ class Evaluator(object):
             mAP_ = []
 
             # 10 evaluations, take average:
-            for i in range(5):
+            for i in range(30):
                 query_imgs, gal_imgs = get_rand_images(query, gallery)#, imgs_from_q, imgs_from_g)
 
                 # initialize loading and normalization
@@ -457,11 +472,12 @@ class Evaluator(object):
             # load gallery
             imgs_batch = Variable().cuda()
             # out_all = np.empty(0)
-            array_ = np.empty([1, 6, 533, 50, 128])
+            array_ = np.empty([1, 6, 533, 50, self.model.num_classes])
+            self.model.cuda()
             self.model.eval()
 
             for i, inputs in enumerate(query):
-                imgs, a, _ , _ = inputs
+                imgs, a, _, _ = inputs
                 inputs = [Variable(imgs).cuda()]
                 outputs = self.model(*inputs)
 
@@ -474,9 +490,10 @@ class Evaluator(object):
                     array_[0, cam[i] - 1, pers[i], num[i] - 1] = outputs[i]
                     # out_all = np.concatenate([out_all, np.array(outputs)])
 
+            self.model_cm.cuda()
             self.model_cm.eval()
             for i, inputs in enumerate(gallery):
-                imgs, a, _ , _ = inputs
+                imgs, a, _, _ = inputs
                 inputs = [Variable(imgs).cuda()]
                 outputs = self.model_cm(*inputs)
 
@@ -530,7 +547,7 @@ class Evaluator(object):
 #
 #         return acc1
 
-def get_rand_images(query, gallery, cam_q=None, cam_g=None):
+def get_rand_images(query, gallery):
     # choose randomly from gallery and query
     liste = np.asarray([q[1] for q in query])
     random_querys = [random.choice(np.where(liste == i)[0]) for i in np.unique(liste)]

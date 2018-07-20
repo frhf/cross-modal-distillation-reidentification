@@ -61,7 +61,7 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers,
         shuffle=True, pin_memory=False, drop_last=True)
 
     val_loader = DataLoader(
-        Preprocessor(dataset.val, root=dataset.images_dir,
+        Preprocessor(dataset.val_probe+dataset.val_gallery, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
@@ -80,15 +80,10 @@ def main(args):
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
-    # Redirect print to both console and log file
-    # evaluation only
-    # if not args.evaluate:
-    #     sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
 
-    print(args)
-
+    use_all = False
     # writer for summary
-    writer = SummaryWriter('/export/livia/home/vision/FHafner/masterthesis/tensorboard_logdir')
+
 
     # Create data loaders
     if args.height is None or args.width is None:
@@ -106,6 +101,7 @@ def main(args):
     model = models.create(args.arch, num_features=args.features,
                           dropout=args.dropout, num_classes=num_classes)
 
+
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
@@ -115,38 +111,33 @@ def main(args):
         best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
-    # model = nn.DataParallel(model).cuda()
+
+    # Evaluator
+    evaluator = Evaluator(model)
+    if args.evaluate:
+        evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
+                           metric=None, calc_cmc=True, use_all=use_all)
+        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+                           calc_cmc=True, use_all=use_all)
+        return
 
     # writer for summary
     logs_dir_tb = args.logs_dir + '/tensorboard/'
     if not os.path.exists(logs_dir_tb):
         os.makedirs(logs_dir_tb)
 
+    if os.listdir(logs_dir_tb) != []:
+        raise Exception('There is already a trained model in the directory!')
+
+    writer = SummaryWriter(logs_dir_tb)
+
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
 
-    # Evaluator
-    evaluator = Evaluator(model)
-    if args.evaluate:
-        metric.train(model, train_loader)
-        print("Validation:")
-        evaluator.evaluate(val_loader, dataset.val, dataset.val, 1, metric)
-        print("Test:")
-        evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, metric)
-        return
 
     # Criterion
     criterion = nn.CrossEntropyLoss().cuda()
 
-    # Optimizer
-    # if hasattr(model.module, 'base'):
-    #     base_param_ids = set(map(id, model.module.base.parameters()))
-    #     new_params = [p for p in model.parameters() if
-    #                   id(p) not in base_param_ids]
-    #     param_groups = [
-    #         {'params': model.module.base.parameters(), 'lr_mult': 0.1},
-    #         {'params': new_params, 'lr_mult': 1.0}]
-    # else:
     param_groups = model.parameters()
 
     optimizer = torch.optim.SGD(param_groups, lr=args.lr,
@@ -170,24 +161,21 @@ def main(args):
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
         if epoch < args.start_save:
             continue
-        # top1 = evaluator.evaluate(val_loader, dataset.val, dataset.val, args.print_freq, writer, epoch)
-        if epoch % 10 == 0 or top1 == 0:
-            # top1 = evaluator.evaluate_partly(val_loader, dataset.val, dataset.val, args.print_freq,  writer, epoch, n_batches=3)
-            top1 = evaluator.evaluate_single_shot(dataset.val_gallery, dataset.val_probe, 1, writer,
-                                                  epoch, osp.join(args.data_dir, args.dataset), args.height, args.width)
-            # evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
-            #                                osp.join(args.data_dir, args.dataset), args.height, args.width)
 
-        is_best = top1 > best_top1
-        best_top1 = max(top1, best_top1)
-        print("is_best: " + str(is_best))
-        if is_best:
-            print("epoch: " + str(epoch))
-            save_checkpoint({
-                'state_dict': model.module.state_dict(),
-                'epoch': epoch + 1,
-                'best_top1': best_top1,
-            }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
+        if epoch % 2 == 0:
+            top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, args.print_freq, writer, epoch,
+                                      metric=None, calc_cmc=True, use_all=use_all)
+
+            is_best = top1 > best_top1
+            best_top1 = max(top1, best_top1)
+            print("is_best: " + str(is_best))
+            if is_best:
+                print("epoch: " + str(epoch))
+                save_checkpoint({
+                    'state_dict': model.state_dict(),
+                    'epoch': epoch + 1,
+                    'best_top1': best_top1,
+                }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
 
         print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
               format(epoch, top1, best_top1, ' *' if is_best else ''))
@@ -195,10 +183,11 @@ def main(args):
     # Final test
     print('Test with best model:')
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
-    model.module.load_state_dict(checkpoint['state_dict'])
-    # metric.train(model, train_loader)
-    top1_best = evaluator.evaluate_single_shot(dataset.gallery, dataset.query, 1, None, 0,
-                                   osp.join(args.data_dir, args.dataset), args.height, args.width)
+    model.load_state_dict(checkpoint['state_dict'])
+    evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
+                       calc_cmc=True, use_all=use_all)
+    evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+                       calc_cmc=True, use_all=use_all)
 
 
 if __name__ == '__main__':
