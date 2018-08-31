@@ -51,15 +51,15 @@ class PostTrainer:
         torch.set_num_threads(1)
 
         postnet = PostNet()
-        # postnet.cuda()
+        postnet.cuda()
 
-        variance = 0.05
+        variance = 0.1
         for m in postnet.modules():
             if isinstance(m, nn.Linear):
                 m.weight.data.normal_(0.0, variance)
                 pass
 
-        lr = 0.0002
+        lr = 0.002
 
         optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, postnet.parameters()), lr=lr,
                                     momentum=0.9,
@@ -67,8 +67,8 @@ class PostTrainer:
                                     nesterov=True)
         best_top1 = float('inf')
 
-        criterion = nn.MSELoss()#.cuda()
-
+        # criterion = nn.MSELoss()#.cuda()
+        criterion = nn.BCEWithLogitsLoss().cuda()
 
         # st2 = time.time()
         for e in range(epochs):
@@ -77,10 +77,10 @@ class PostTrainer:
 
             loss_val = 0
             for i, batch in enumerate(val_loader):
-                b1 = batch[0]#.cuda()
-                b2 = batch[1]#.cuda()
-                gt = batch[2]#.cuda()
-                gt = gt.type(torch.FloatTensor)#(torch.cuda.FloatTensor)
+                b1 = batch[0].cuda()
+                b2 = batch[1].cuda()
+                gt = batch[2].cuda()
+                gt = gt.type(torch.cuda.FloatTensor)#(torch.FloatTensor)
 
                 outputs = postnet(b1, b2)
                 outputs = torch.squeeze(outputs)
@@ -107,16 +107,17 @@ class PostTrainer:
             for i, batch in enumerate(train_loader):
                 # print('Load ' + str(time.time()-st2))
                 # st2 = time.time()
-                b1 = batch[0]#.cuda()
-                b2 = batch[1]#.cuda()
-                gt = batch[2]#.cuda()
-                gt = gt.type(torch.FloatTensor)#torch.cuda.FloatTensor)
+                b1 = batch[0].cuda()
+                b2 = batch[1].cuda()
+                gt = batch[2].cuda()
+                gt = gt.type(torch.cuda.FloatTensor)
 
                 # st = time.time()
                 outputs = postnet(b1, b2)
                 # print('Net' + str(time.time()-st))
 
                 outputs = torch.squeeze(outputs)
+                # outputs.requires_grad = True
                 loss = criterion(outputs, gt)
 
                 optimizer.zero_grad()
@@ -131,7 +132,7 @@ class PostTrainer:
                 writer.add_scalar('Train Loss', loss_train, e)
 
             evaluate_cm(postnet, val_probe_loader, val_gallery_loader, writer, e, "Val ")
-            evaluate_cm(postnet, test_probe_loader, test_gallery_loader, writer, e, "Test ")
+            # evaluate_cm(postnet, test_probe_loader, test_gallery_loader, writer, e, "Test ")
 
 
 
@@ -151,13 +152,16 @@ def evaluate_cm(net, probe_loader, gallery_loader, writer, e, save_name):
         query = [probe_loader.dataset.dataset[i][1] for i in query_imgs]
         gallery = torch.Tensor([gallery_loader.dataset.dataset[i][1] for i in gal_imgs])#.cuda()
 
-        dist = torch.Tensor()#.cuda()
+        dist = torch.Tensor().cuda()
+        sig = nn.Sigmoid()
 
         net.eval()
         for j in range(len(query_imgs)):
-            query_ = torch.Tensor(([query[j]]*len(gallery)))#.cuda()
+            query_ = torch.Tensor(([query[j]]*len(gallery))).cuda()
+            gallery = gallery.cuda()
 
             out = net(query_, gallery)
+            out = sig(out)
 
             dist = torch.cat((dist, out), dim=1)
             if j == 0 and i == 0:
@@ -167,10 +171,10 @@ def evaluate_cm(net, probe_loader, gallery_loader, writer, e, save_name):
 
         dist = dist.transpose(dim0=0, dim1=1)
         dist = dist.cpu().data.numpy()
-        query_p = gallery_p = [i for i in range(len(query_imgs))]
+        # query_p = gallery_p = [i for i in range(len(query_imgs))]
 
-        all = torch.empty(len(dist), 0)
-        all = [sum(dist[i][i] <= dist[i]) for i in range(len(dist))]
+        # all = torch.empty(len(dist), 0)
+        all = [sum(dist[i][i] < dist[i]) for i in range(len(dist))]
         all = np.array(all)
         top1 += sum(all < 2) / len(all)
         top5 += sum(all < 6) / len(all)

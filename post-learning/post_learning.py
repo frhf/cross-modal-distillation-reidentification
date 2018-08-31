@@ -58,8 +58,8 @@ def get_data(path_to_gt1, path_to_gt2, batch_size=64, workers=4):
 
 
 
-modal1 = 'sysu_ir'
-modal2 = 'sysu'
+modal1 = 'biwi_depth'
+modal2 = 'biwi'
 
 logdir = '/export/livia/data/FHafner/data/logdir/'
 

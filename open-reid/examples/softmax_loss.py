@@ -29,7 +29,7 @@ import os
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
-             combine_trainval):
+             combine_trainval, zero_pad):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)
@@ -41,30 +41,45 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers,
     num_classes = (dataset.num_trainval_ids if combine_trainval
                    else dataset.num_train_ids)
 
-    train_transformer = T.Compose([
-        T.RandomSizedRectCrop(height, width),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        normalizer,
-    ])
+    if zero_pad:
+        train_transformer = T.Compose([
+            T.RandomSizedRectCropDepth(height, width),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            normalizer,
+        ])
 
-    test_transformer = T.Compose([
-        T.RectScale(height, width),
-        T.ToTensor(),
-        normalizer,
-    ])
+        test_transformer = T.Compose([
+            T.RectScaleDepth(height, width),
+            T.ToTensor(),
+            normalizer,
+        ])
+
+    else:
+        train_transformer = T.Compose([
+            T.RandomSizedRectCrop(height, width),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            normalizer,
+        ])
+
+        test_transformer = T.Compose([
+            T.RectScale(height, width),
+            T.ToTensor(),
+            normalizer,
+        ])
 
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
                      transform=train_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=True, pin_memory=False, drop_last=True)
+        shuffle=True, pin_memory=True, drop_last=True)
 
     val_loader = DataLoader(
         Preprocessor(dataset.val_probe+dataset.val_gallery, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
-        shuffle=False, pin_memory=False)
+        shuffle=False, pin_memory=True)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
@@ -81,7 +96,7 @@ def main(args):
     cudnn.benchmark = True
 
 
-    use_all = False
+    use_all = True
     # writer for summary
 
 
@@ -95,7 +110,7 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.workers,
-                 args.combine_trainval)
+                 args.combine_trainval, args.zero_pad)
 
     # Create model
     model = models.create(args.arch, num_features=args.features,
@@ -115,8 +130,10 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
-        evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
-                           metric=None, calc_cmc=True, use_all=use_all)
+        # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
+        #                    metric=None, calc_cmc=False, use_all=use_all)
+        # evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+        #                    calc_cmc=True, use_all=use_all)
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
                            calc_cmc=True, use_all=use_all)
         return
@@ -126,8 +143,8 @@ def main(args):
     if not os.path.exists(logs_dir_tb):
         os.makedirs(logs_dir_tb)
 
-    if os.listdir(logs_dir_tb) != []:
-        raise Exception('There is already a trained model in the directory!')
+    # if os.listdir(logs_dir_tb) != []:
+    #     raise Exception('There is already a trained model in the directory!')
 
     writer = SummaryWriter(logs_dir_tb)
 
@@ -155,6 +172,9 @@ def main(args):
         for g in optimizer.param_groups:
             g['lr'] = lr * g.get('lr_mult', 1)
 
+    top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, args.print_freq, writer, 0,
+                              metric=None, calc_cmc=True, use_all=use_all)
+
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -177,8 +197,8 @@ def main(args):
                     'best_top1': best_top1,
                 }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
 
-        print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
-              format(epoch, top1, best_top1, ' *' if is_best else ''))
+            print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
+                  format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
     print('Test with best model:')
@@ -220,6 +240,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
+    parser.add_argument('--zero-pad', type=bool, default=False)
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
     parser.add_argument('--epochs', type=int, default=50)

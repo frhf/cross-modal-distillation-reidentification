@@ -20,7 +20,7 @@ from loss import TripletLoss
 from trainers import Trainer
 from evaluators import Evaluator
 from utils.data import transforms as T
-from utils.data.preprocessor import Preprocessor
+from utils.data.preprocessor import PreprocessorZP
 from utils.data.sampler import RandomIdentitySampler
 from utils.logging import Logger
 from utils.serialization import load_checkpoint, save_checkpoint
@@ -61,30 +61,30 @@ def get_data(name1, name2, split_id, data_dir, height, width, batch_size, worker
     ])
 
     train_loader = DataLoader(
-        Preprocessor(train_set1, train_set2, root=dataset1.images_dir, root2=dataset2.images_dir,
+        PreprocessorZP(train_set1, train_set2, root=dataset1.images_dir, root2=dataset2.images_dir,
                               transform=train_transformer),
         batch_size=batch_size, num_workers=workers, shuffle=True, pin_memory=False, drop_last=True)
 
     val_loader1 = DataLoader(
-        Preprocessor(list(set(dataset1.val_probe) | set(dataset1.val_gallery)), root=dataset1.images_dir,
+        PreprocessorZP(list(set(dataset1.val_probe) | set(dataset1.val_gallery)), root=dataset1.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
 
     val_loader2 = DataLoader(
-        Preprocessor(list(set(dataset2.val_probe) | set(dataset2.val_gallery)), root=dataset2.images_dir,
+        PreprocessorZP(list(set(dataset2.val_probe) | set(dataset2.val_gallery)), root=dataset2.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
 
     test_loader1 = DataLoader(
-        Preprocessor(list(set(dataset1.query) | set(dataset1.gallery)),
+        PreprocessorZP(list(set(dataset1.query) | set(dataset1.gallery)),
                      root=dataset1.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
 
     test_loader2 = DataLoader(
-        Preprocessor(list(set(dataset2.query) | set(dataset2.gallery)),
+        PreprocessorZP(list(set(dataset2.query) | set(dataset2.gallery)),
                      root=dataset2.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
@@ -126,8 +126,7 @@ def main(args):
         checkpoint = load_checkpoint(args.resume)
         model.load_state_dict(checkpoint['state_dict'])
         start_epoch = checkpoint['epoch']
-        # best_top1 = checkpoint['best_top1']
-        best_top1 = 0
+        best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
     # model = nn.DataParallel(model).cuda()
@@ -148,17 +147,15 @@ def main(args):
         # evaluator.evaluate_all_and_save_sysu(test_loader1, test_loader2, save_to, height=args.height, width=args.width)
 
         print("Validation: ")
-        # evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
-        #                       dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
-        #                       metric=None, calc_cmc=True, use_all=use_all)
-        # evaluator.make_comp_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
-        #                       dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-        #                       metric=None, calc_cmc=True, use_all=use_all)
+        evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
+                              dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
+                              metric=None, calc_cmc=True, use_all=use_all)
+
 
         print("Test:")
         evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
                               dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-                              metric=None, calc_cmc=True, use_all=use_all)
+                              metric=None, calc_cmc=True, use_all=use_all, test=True)
 
 
         # evaluator.evaluate_single_shot(dataset1.val_probe, dataset1.val_probe, 0, None, 0,
@@ -244,7 +241,6 @@ def main(args):
                           dataset2.val_probe, dataset2.val_gallery, 10, writer=writer, epoch=None,
                           metric=None, calc_cmc=True, use_all=use_all)
 
-    top1 = 0
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -283,7 +279,7 @@ def main(args):
 
     evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
                                  dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-                                 metric=None, calc_cmc=True, use_all=use_all)
+                                 metric=None, calc_cmc=True, use_all=use_all, test=True)
 
 
 if __name__ == '__main__':

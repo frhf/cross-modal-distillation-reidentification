@@ -106,7 +106,7 @@ def main(args):
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
-    use_all = False
+    use_all = True
 
     top1 = 0
 
@@ -155,8 +155,10 @@ def main(args):
         #                                osp.join(args.data_dir, args.dataset), args.height, args.width, evaluations=5)
         # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
         #                    calc_cmc=True)
-        evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
-                                  metric=None, calc_cmc=False, use_all=use_all)
+        # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
+        #                           metric=None, calc_cmc=False, use_all=use_all)
+        evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+                           calc_cmc=True, use_all=use_all)
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
                            calc_cmc=True, use_all=use_all)
         return
@@ -207,6 +209,12 @@ def main(args):
             args.lr * (0.001 ** ((epoch - 100) / 50.0))
         for g in optimizer.param_groups:
             g['lr'] = lr * g.get('lr_mult', 1)
+
+    evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer, 0,
+                       metric=None, calc_cmc=True, use_all=use_all)
+
+    top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer, 0,
+                              metric=None, calc_cmc=True, use_all=use_all)
 
     # Start training
     for epoch in range(start_epoch, args.epochs):

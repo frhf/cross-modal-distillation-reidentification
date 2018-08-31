@@ -74,15 +74,26 @@ class Retrainer:
         return model
 
     def retrain(self, dataset_ret, dataset_orig, path_to_gt, root='/export/livia/data/FHafner/data/',
-                epochs=50, split_id=0, start_epoch=1, batch_size=64, workers=2,
-                combine_trainval=False, path_to_retmodel=None):
+                epochs=50, split_id=0, start_epoch=1, batch_size=64, workers=0,
+                combine_trainval=False, path_to_retmodel=None, evaluate=None):
 
         epochs += 1
 
+        use_all = True
+        # if dataset_ret == 'biwi' or  dataset_ret == 'biwi_depth' or dataset_ret == 'pku' or dataset_ret == 'pku_depth':
+        #     use_all = True
+        # else:
+        #     use_all = False
+
+        print(use_all)
+
         if self.model_arch == 'inception':
             height, width = (144, 56)
+        # elif dataset_ret == 'pku_depth' or dataset_ret == 'pku_depth':
+        #     height, width = (512, 256)
         else:
             height, width = (256, 128)
+
 
         # load retrain dataset
         dataset, train_loader, val_loader_ret, val_loader_int, test_loader, test_loader_ret = \
@@ -91,6 +102,33 @@ class Retrainer:
         dataset_orig_, train_loader_orig_, val_loader_ret_orig_, val_loader_int_orig_, test_loader_orig_, \
         test_loader_ret_orig_ = \
             get_data(dataset_orig, split_id, root, height, width, batch_size, workers, combine_trainval, path_to_gt)
+
+        if evaluate:
+            model_load = models.create(self.model_arch, num_features=self.num_features,
+                                  dropout=self.dropout, num_classes=self.num_classes)
+            checkpoint = load_checkpoint(osp.join(path_to_retmodel, 'model_best.pth.tar'))
+            model_load.load_state_dict(checkpoint['state_dict'])
+            print(checkpoint['epoch'])
+            evaluator = Evaluator(model_load, self.model_orig)
+
+            print("Modality 1: " + val_loader_int.dataset.root)
+            print("Modality 2: " + val_loader_int_orig_.dataset.root)
+            # evaluator.make_comp_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
+            #                       dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
+            #                       metric=None, calc_cmc=True, use_all=use_all)
+
+            # evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
+            #                       dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=None, epoch=0,
+            #                       metric=None, calc_cmc=True, use_all=use_all)
+            print("Test:")
+            evaluator.evaluate_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
+                                  dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
+                                  metric=None, calc_cmc=True, use_all=use_all, test=True)
+
+            if dataset_ret == 'sysu' or dataset_ret == 'sysu_ir':
+                evaluator.evaluate_all_and_save_sysu(test_loader, test_loader_orig_, path_to_retmodel, height=height,
+                                                     width=width)
+            return
 
         if not os.path.exists(path_to_retmodel + '/tensorboard'):
             os.makedirs(path_to_retmodel + '/tensorboard')
@@ -104,7 +142,12 @@ class Retrainer:
 
         param_groups = self.model.parameters()
 
-        lr = 0.00002
+        if dataset_ret == 'biwi' or dataset_ret == 'biwi_depth' or dataset_ret =='synthia' or \
+                dataset_ret == 'synthia_depth':
+            lr = 0.000001
+        else:
+            lr = 0.00002
+
         optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=lr,
                                     momentum=0.9,
                                     weight_decay=0.0005,
@@ -116,6 +159,7 @@ class Retrainer:
 
         evaluator = Evaluator(self.model, self.model_orig)
 
+        # best_top1 = float('Inf')
         best_top1 = 0
 
         def adjust_lr(epoch, lr):
@@ -124,19 +168,24 @@ class Retrainer:
             for g in optimizer.param_groups:
                 g['lr'] = lr * g.get('lr_mult', 1)
 
-        evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, writer,
-                                              0, root + dataset_ret, height, width,
-                                              name2save="Reid in Retrain Domain: ")
 
-        evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height,
-                                       width, name2save="Training data: ")
 
-        # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height, width,
-        #                         root2=root + dataset_orig)
-        # # evaluate CM
-        top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, 0,
-                                          root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
+        evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
+                              dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=writer, epoch=0,
+                              metric=None, calc_cmc=True, use_all=use_all)
+        # evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, writer,
+        #                                       0, root + dataset_ret, height, width,
+        #                                       name2save="Reid in Retrain Domain: ")
         #
+        # evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height,
+        #                                width, name2save="Training data: ")
+        #
+        # # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height, width,
+        # #                         root2=root + dataset_orig)
+        # # # evaluate CM
+        # top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, 0,
+        #                                   root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
+        # #
         # # if epoch % 4 == 0:
         evaluator.evaluate_validationloss(val_loader_ret, val_loader_int, criterion, 0, dataset.gallery, dataset.query,
                                        writer=writer)
@@ -144,32 +193,39 @@ class Retrainer:
 
         for epoch in range(start_epoch, epochs):
             adjust_lr(epoch, lr)
-
+            print('Training epoch: ' + str(epoch))
             trainer.train(epoch, train_loader, optimizer, print_freq=50, writer=writer)
 
 
             # if epoch % 10 == 0:
             #evaluate in retrained domain
-            evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, writer,
-                                                  epoch, root + dataset_ret, height, width,
-                                                  name2save="Reid in Retrain Domain: ")
-
-            evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height,
-                                           width, name2save="Training data: ")
+            # evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, writer,
+            #                                       epoch, root + dataset_ret, height, width,
+            #                                       name2save="Reid in Retrain Domain: ")
+            #
+            # evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height,
+            #                                width, name2save="Training data: ")
 
             # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height, width,
             #                        root2=root + dataset_orig)
             # evaluate CM
-            top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, epoch,
-                                              root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
+            # top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, epoch,
+            #                                   root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
+
+            top1 = evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
+                                  dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=writer, epoch=epoch+1,
+                                  metric=None, calc_cmc=True, use_all=use_all)
 
             # if epoch % 4 == 0:
             evaluator.evaluate_validationloss(val_loader_ret, val_loader_int, criterion, epoch, dataset.gallery, dataset.query,
                                        writer=writer)
 
             ## save model if its best
+            # is_best = top1 < best_top1
+            # best_top1 = min(top1, best_top1)
             is_best = top1 > best_top1
             best_top1 = max(top1, best_top1)
+
             if is_best:
                 print("Model is saved.")
                 save_checkpoint({
@@ -177,6 +233,26 @@ class Retrainer:
                     'epoch': epoch + 1,
                     'best_top1': best_top1,
                 }, is_best, fpath=osp.join(path_to_retmodel, 'model_best.pth.tar'))
+
+        model_load = models.create(self.model_arch, num_features=self.num_features,
+                                   dropout=self.dropout, num_classes=self.num_classes)
+        checkpoint = load_checkpoint(osp.join(path_to_retmodel, 'model_best.pth.tar'))
+        model_load.load_state_dict(checkpoint['state_dict'])
+        print(checkpoint['epoch'])
+        evaluator = Evaluator(model_load, self.model_orig)
+
+        print("Modality 1: " + val_loader_int.dataset.root)
+        print("Modality 2: " + val_loader_int_orig_.dataset.root)
+
+        evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
+                              dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=None, epoch=0,
+                              metric=None, calc_cmc=True, use_all=use_all)
+        print("Test:")
+        evaluator.evaluate_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
+                              dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
+                              metric=None, calc_cmc=True, use_all=use_all)
+
+
 
     def re_evaluate_retrain(self, dataset_ret, dataset_orig, path_to_gt, root='/export/livia/data/FHafner/data/',
                          split_id=0, batch_size=64, workers=2, combine_trainval=False, path_to_retsavemodel=None):

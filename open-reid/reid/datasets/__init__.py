@@ -15,6 +15,13 @@ from .tum_depth import Tum_depth
 from .tum_comb import Tum_comb
 from .sysu import Sysu
 from .sysu_ir import Sysu_ir
+from .iit import Iit
+from .iit_depth import Iit_depth
+from .iit_depth_pc import Iit_depth_pc
+from .pku import Pku
+from .pku_depth import Pku_depth
+from .synthia import Synthia
+from .synthia_depth import Synthia_depth
 
 
 __factory = {
@@ -31,7 +38,14 @@ __factory = {
     'tum_depth': Tum_depth,
     'tum_comb': Tum_comb,
     'sysu': Sysu,
-    'sysu_ir': Sysu_ir
+    'sysu_ir': Sysu_ir,
+    'iit': Iit,
+    'iit_depth': Iit_depth,
+    'iit_depth_pc': Iit_depth_pc,
+    'pku': Pku,
+    'pku_depth': Pku_depth,
+    'synthia': Synthia,
+    'synthia_depth': Synthia_depth
 }
 
 

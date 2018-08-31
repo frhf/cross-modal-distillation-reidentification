@@ -8,7 +8,6 @@ sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/'
 from evaluators import extract_features
 from metric_learning import get_metric
 
-
 class DistanceMetric(object):
     def __init__(self, algorithm='euclidean', *args, **kwargs):
         super(DistanceMetric, self).__init__()

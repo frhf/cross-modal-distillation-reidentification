@@ -7,6 +7,7 @@ from sklearn.metrics import average_precision_score
 import sys
 sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
 from utils import to_numpy
+from visualization_tools import calc_conf
 
 
 def _unique_sample(ids_dict, num):
@@ -21,7 +22,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
         query_cams=None, gallery_cams=None, topk=100,
         separate_camera_set=False,
         single_gallery_shot=False,
-        first_match_break=False, use_all=False):
+        first_match_break=False, use_all=False, same=None):
     distmat = to_numpy(distmat)
     m, n = distmat.shape
     # Fill up default values
@@ -58,11 +59,11 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
             valid &= (gallery_cams[indices[i]] != query_cams[i])
 
         if use_all:
-            valid = np.ones(len(gallery_ids), dtype=bool)
+            valid = same[i]
 
         if not np.any(matches[i, valid]): continue
         if single_gallery_shot:
-            repeat = 10
+            repeat = 15
             gids = gallery_ids[indices[i][valid]]
             inds = np.where(valid)[0]
             ids_dict = defaultdict(list)
@@ -94,7 +95,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
 
 
 def mean_ap(distmat, query_ids=None, gallery_ids=None,
-            query_cams=None, gallery_cams=None, use_all=False):
+            query_cams=None, gallery_cams=None, use_all=False, same=None):
     distmat = to_numpy(distmat)
     m, n = distmat.shape
     # Fill up default values
@@ -114,6 +115,9 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
     # Sort and find correct matches
     indices = np.argsort(distmat, axis=1)
     matches = (gallery_ids[indices] == query_ids[:, np.newaxis])
+
+    # calc_conf(indices, gallery_ids, query_ids, use_all, gallery_cams, query_cams, same)
+
     # Compute AP for each query
     aps = []
     for i in range(m):
@@ -123,7 +127,8 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
                 (gallery_cams[indices[i]] != query_cams[i]))# ATETNTNET
 
         if use_all:
-            valid = np.ones(len(gallery_ids), dtype=bool)
+            valid = same[i]
+
 
         y_true = matches[i, valid]
         y_score = -distmat[i][indices[i]][valid]
@@ -132,3 +137,6 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
     if len(aps) == 0:
         raise RuntimeError("No valid query")
     return np.mean(aps)
+
+
+

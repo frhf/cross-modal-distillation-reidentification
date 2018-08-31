@@ -89,7 +89,7 @@ class PreprocessorPost(object):
         if pers1 == pers2:
             same = 1
         else:
-            same = -1
+            same = 0
 
         return enc1, enc2, same
 
@@ -99,7 +99,6 @@ class PreprocessorPostEval(object):
         self.path_to_gt1 = path_to_gt
 
         self.dataset = pickle.load(open(path_to_gt, "rb"))
-
 
     def __len__(self):
         return len(self.dataset)

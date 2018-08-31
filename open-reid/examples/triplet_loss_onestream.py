@@ -116,8 +116,8 @@ def main(args):
                  args.combine_trainval)
 
     # Create model
-    model = models.create(args.arch, num_features=args.features,
-                          dropout=args.dropout, num_classes=num_classes)
+    model = models.create(args.arch, num_features=1024,
+                          dropout=args.dropout, num_classes=args.features)
 
 
     # Load from checkpoint
@@ -126,8 +126,7 @@ def main(args):
         checkpoint = load_checkpoint(args.resume)
         model.load_state_dict(checkpoint['state_dict'])
         start_epoch = checkpoint['epoch']
-        # best_top1 = checkpoint['best_top1']
-        best_top1 = 0
+        best_top1 = checkpoint['best_top1']
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
     # model = nn.DataParallel(model).cuda()
@@ -148,12 +147,10 @@ def main(args):
         # evaluator.evaluate_all_and_save_sysu(test_loader1, test_loader2, save_to, height=args.height, width=args.width)
 
         print("Validation: ")
-        # evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
-        #                       dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
-        #                       metric=None, calc_cmc=True, use_all=use_all)
-        # evaluator.make_comp_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
-        #                       dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-        #                       metric=None, calc_cmc=True, use_all=use_all)
+        evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
+                              dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
+                              metric=None, calc_cmc=True, use_all=use_all)
+
 
         print("Test:")
         evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
@@ -203,14 +200,12 @@ def main(args):
     writer = SummaryWriter(logs_dir_tb)
 
     # Criterion
-    criterion = nn.CrossEntropyLoss().cuda()
+    # Criterion
+    criterion = TripletLoss(margin=args.margin).cuda()
 
-    param_groups = model.parameters()
-
-    optimizer = torch.optim.SGD(param_groups, lr=args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay,
-                                nesterov=True)
+    # Optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,
+                                 weight_decay=args.weight_decay)
 
     # Trainer
     trainer = Trainer(model, criterion)
@@ -244,7 +239,6 @@ def main(args):
                           dataset2.val_probe, dataset2.val_gallery, 10, writer=writer, epoch=None,
                           metric=None, calc_cmc=True, use_all=use_all)
 
-    top1 = 0
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
@@ -281,8 +275,8 @@ def main(args):
                                  dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
                                  metric=None, calc_cmc=True, use_all=use_all)
 
-    evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
-                                 dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
+    evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
+                                 dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
                                  metric=None, calc_cmc=True, use_all=use_all)
 
 
@@ -305,22 +299,30 @@ if __name__ == '__main__':
     parser.add_argument('--combine-trainval', action='store_true',
                         help="train and val sets together for training, "
                              "val set alone for validation")
+    parser.add_argument('--num-instances', type=int, default=4,
+                        help="each minibatch consist of "
+                             "(batch_size // num_instances) identities, and "
+                             "each identity has num_instances instances, "
+                             "default: 4")
     # model
     parser.add_argument('-a', '--arch', type=str, default='resnet50',
                         choices=models.names())
     parser.add_argument('--features', type=int, default=128)
-    parser.add_argument('--dropout', type=float, default=0.5)
+    parser.add_argument('--dropout', type=float, default=0)
+    # loss
+    parser.add_argument('--margin', type=float, default=0.5,
+                        help="margin of the triplet loss, default: 0.5")
     # optimizer
-    parser.add_argument('--lr', type=float, default=0.1,
-                        help="learning rate of new parameters, for pretrained "
-                             "parameters it is 10 times smaller than this")
-    parser.add_argument('--momentum', type=float, default=0.9)
+    parser.add_argument('--lr', type=float, default=0.0002,
+                        help="learning rate of all parameters")
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--evaluate-cm', action='store_true',
+                        help="evaluation only")
+    parser.add_argument('--epochs', type=int, default=150)
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
     parser.add_argument('--seed', type=int, default=1)
@@ -331,7 +333,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default='/export/livia/data/FHafner/data')#osp.join(working_dir, 'data'))
+                        default='/export/livia/data/FHafner/data')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
     main(parser.parse_args())
