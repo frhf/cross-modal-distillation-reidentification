@@ -95,6 +95,9 @@ def main(args):
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
+    name_val = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
+    name_test = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
+    print(name_test)
 
     use_all = True
     # writer for summary
@@ -134,8 +137,11 @@ def main(args):
         #                    metric=None, calc_cmc=False, use_all=use_all)
         # evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
         #                    calc_cmc=True, use_all=use_all)
+        model.num_classes = 0
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
                            calc_cmc=True, use_all=use_all)
+        model.num_classes = num_classes
+
         return
 
     # writer for summary
@@ -172,8 +178,10 @@ def main(args):
         for g in optimizer.param_groups:
             g['lr'] = lr * g.get('lr_mult', 1)
 
+    model.num_classes = 0
     top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, args.print_freq, writer, 0,
                               metric=None, calc_cmc=True, use_all=use_all)
+    model.num_classes = num_classes
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
@@ -182,7 +190,8 @@ def main(args):
         if epoch < args.start_save:
             continue
 
-        if epoch % 2 == 0:
+        if epoch % 10 == 0:
+            model.num_classes = 0
             top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, args.print_freq, writer, epoch,
                                       metric=None, calc_cmc=True, use_all=use_all)
 
@@ -199,15 +208,17 @@ def main(args):
 
             print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
                   format(epoch, top1, best_top1, ' *' if is_best else ''))
+            model.num_classes = num_classes
 
     # Final test
     print('Test with best model:')
+    model.num_classes = 0
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     model.load_state_dict(checkpoint['state_dict'])
     evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
-                       calc_cmc=True, use_all=use_all)
+                       calc_cmc=True, use_all=use_all, final=name_val)
     evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
-                       calc_cmc=True, use_all=use_all)
+                       calc_cmc=True, use_all=use_all, final=name_test)
 
 
 if __name__ == '__main__':

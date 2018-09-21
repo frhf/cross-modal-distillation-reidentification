@@ -21,7 +21,7 @@ from PIL import Image
 from sklearn.metrics import average_precision_score
 import scipy.io as sio
 from visualization_tools import make_comparison_img, make_comparison_img_cm
-
+import pickle
 
 # evaluates NN and saves time for doing so
 def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=None):
@@ -71,7 +71,7 @@ def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=No
 
         if i == n_batches:
             break
-
+    print(output.shape)
     return features, labels
 
 
@@ -111,7 +111,9 @@ def pairwise_distance(features1, query=None, gallery=None, metric=None, features
 def evaluate_all(distmat, query=None, gallery=None,
                  query_ids=None, gallery_ids=None,
                  query_cams=None, gallery_cams=None,
-                 cmc_topk=(1, 5, 10), writer=None, epoch=None, calc_cmc=False, use_all=False, save_as="", same=None):
+                 cmc_topk=(1, 5, 10), writer=None,
+                 epoch=None, calc_cmc=True, use_all=True,
+                 save_as="", same=None, final=[]):
     if query is not None and gallery is not None:
         query_ids = [pid for _, pid, _ in query]
         gallery_ids = [pid for _, pid, _ in gallery]
@@ -163,6 +165,13 @@ def evaluate_all(distmat, query=None, gallery=None,
         writer.add_scalar(save_as + 'Rank 10', cmc_scores['cuhk03'][9], epoch)
         writer.add_scalar(save_as + ' mAP', mAP, epoch)
 
+    if not final == []:
+
+        path = '/export/livia/data/FHafner/data/outputs_new/'
+        file = open(path + final, 'ab+')
+        pickle.dump([cmc_scores['cuhk03'][0], cmc_scores['cuhk03'][4], cmc_scores['cuhk03'][9], mAP], file)
+        file.close()
+
     # Use the allshots cmc top-1 score for validation criterion
     # return cmc_scores['cuhk03'][0]
     return mAP
@@ -178,7 +187,7 @@ class Evaluator(object):
             self.model_cm = model
 
     def evaluate(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, metric=None, calc_cmc=False,
-                 use_all=False):
+                 use_all=False, final=[]):
         torch.set_num_threads(1)
         features, _ = extract_features(self.model, data_loader, print_freq)
 
@@ -198,13 +207,14 @@ class Evaluator(object):
 
         distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
         return evaluate_all(distmat, query=query_ad, gallery=gallery_ad, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
-                            use_all=use_all, same=same)
+                            use_all=use_all, same=same, final=final)
 
     def evaluate_cm(self, data_loader1, data_loader2, query1, gallery1, query2, gallery2, print_freq, writer=None,
-                    epoch=None, metric=None, calc_cmc=False, use_all=False, test=False):
+                    epoch=None, metric=None, calc_cmc=False, use_all=False, test=False, final=[]):
         torch.set_num_threads(1)
         features1, _ = extract_features(self.model, data_loader1, print_freq)
         features2, _ = extract_features(self.model_cm, data_loader2, print_freq)
+
 
         if data_loader1.dataset.root.split('/')[-2] == 'synthia_depth' or \
                 data_loader1.dataset.root.split('/')[-2] == 'synthia':
@@ -212,12 +222,13 @@ class Evaluator(object):
             gallery1_r = gallery1
             query2_r = query2
             gallery2_r = gallery2
+        elif data_loader1.dataset.root.split('/')[-2] == 'sysu' or \
+                data_loader1.dataset.root.split('/')[-2] == 'sysu_ir':
+            query1_r, gallery1_r = get_rand(query1, gallery1, query_am=20, gal_am=10)
+            query2_r, gallery2_r = get_rand(query2, gallery2, query_am=20, gal_am=10)
         else:
             query1_r, gallery1_r = get_rand(query1, gallery1, query_am=50, gal_am=50)
             query2_r, gallery2_r = get_rand(query2, gallery2, query_am=50, gal_am=50)
-
-        # query = [i for no, i in enumerate(query) if no % 20 == 0]
-        # gallery = [i for no, i in enumerate(gallery) if no % 20 == 0]
 
         # one modal 1
         # ATTENTION SYSUIR TEST
@@ -233,7 +244,7 @@ class Evaluator(object):
         # one modal 1
         distmat1 = pairwise_distance(features1, query1_r, gallery1_r, metric=metric)
         evaluate_all(distmat1, query=query1_r, gallery=gallery1_r, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
-                            use_all=use_all_temp, save_as='Modality 1 ', same=same)
+                            use_all=use_all_temp, save_as='Modality 1 ', same=same, final=final)
 
         # one modal 2
         if data_loader2.dataset.root.split("/")[-2]=='sysu_ir' and not test or use_all:
@@ -246,7 +257,7 @@ class Evaluator(object):
 
         distmat2 = pairwise_distance(features2, query2_r, gallery2_r, metric=metric)
         evaluate_all(distmat2, query=query2_r, gallery=gallery2_r, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
-                            use_all=use_all_temp, save_as='Modality 2 ', same=same)
+                            use_all=use_all_temp, save_as='Modality 2 ', same=same, final=final)
 
         if use_all:
             same = getsame(query1_r, gallery2_r)
@@ -254,7 +265,7 @@ class Evaluator(object):
         # cross modal 1
         distmat_cm1 = pairwise_distance(features1, query1_r, gallery2_r, metric=metric, features2=features2)
         cm1 = evaluate_all(distmat_cm1, query=query1_r, gallery=gallery2_r, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
-                            use_all=use_all, save_as='Cross-Modality from 1 to 2 ', same=same)
+                            use_all=use_all, save_as='Cross-Modality from 1 to 2 ', same=same, final=final)
 
         if use_all:
             same = getsame(query2_r, gallery1_r)
@@ -262,7 +273,7 @@ class Evaluator(object):
         # cross modal 2
         distmat_cm2 = pairwise_distance(features2, query2_r, gallery1_r, metric=metric, features2=features1)
         cm2 = evaluate_all(distmat_cm2, query=query2_r, gallery=gallery1_r, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
-                            use_all=use_all, save_as='Cross-Modality from 2 to 1 ', same=same)
+                            use_all=use_all, save_as='Cross-Modality from 2 to 1 ', same=same, final=final)
 
         return cm1 + cm2
 
@@ -288,7 +299,7 @@ class Evaluator(object):
             same = None
 
         # distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
-        # make_comparison_img_cm(data_loader1.dataset.root, data_loader2.dataset.root, distmat_cm1, query_ad, gallery_ad)
+        make_comparison_img_cm(data_loader1.dataset.root, data_loader2.dataset.root, distmat_cm1, query_ad, gallery_ad)
 
 
 
@@ -342,243 +353,7 @@ class Evaluator(object):
             return overall_loss_n
 
 
-    # def evaluate_partly(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, n_batches=None, metric=None):
-    #     features, labels = extract_features(self.model, data_loader, print_freq, n_batches=n_batches)
-    #     acc1 = cmc_partly(features, labels, writer, epoch)
-    #     return acc1
 
-    # # evaluates single query, single gallery. Therefore, computationally cheap evaluation.
-    # def evaluate_single_shot(self, query, gallery, print_freq, writer=None, epoch=None, root=None, height=None,
-    #                          width=None, name2save="", evaluations=5):
-    #
-    #     # if len(query) != len(gallery):
-    #     #     query = gallery
-    #
-    #     with torch.no_grad():
-    #         torch.set_num_threads(1)
-    #         self.model.cuda()
-    #         self.model.eval()
-    #
-    #         top1_ = []
-    #         top5_ = []
-    #         top10_ = []
-    #         mAP_= []
-    #
-    #         # evaluations, take average:
-    #         for i in range(evaluations):
-    #             gal_imgs, query_imgs = get_rand_images(query, gallery)
-    #
-    #             # initialize loading and normalization
-    #             normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                      std=[0.229, 0.224, 0.225])
-    #
-    #             test_transformer = T.Compose([
-    #                 T.RectScale(height, width),
-    #                 T.ToTensor(),
-    #                 normalizer,
-    #             ])
-    #
-    #             # load gallery
-    #             imgs_batch = Variable().cuda()
-    #             for fname in gal_imgs:
-    #                 fpath = root + '/images/' + fname[0]
-    #
-    #                 img = Image.open(fpath).convert('RGB')
-    #                 img_t = test_transformer(img).cuda()
-    #                 img_t = img_t.unsqueeze(0)
-    #                 imgs_batch = torch.cat([imgs_batch, img_t], 0)
-    #
-    #             vector_gal = self.model(imgs_batch)
-    #             del img_t
-    #             del imgs_batch
-    #
-    #             # load query
-    #             imgs_batch = Variable().cuda()
-    #             for fname in query_imgs:
-    #                 fpath = root + '/images/' + fname[0]
-    #
-    #                 img = Image.open(fpath).convert('RGB')
-    #                 img_t = test_transformer(img).cuda()
-    #                 img_t = img_t.unsqueeze(0)
-    #
-    #                 imgs_batch = torch.cat([imgs_batch, img_t], 0)
-    #
-    #             vector_query = self.model(imgs_batch)
-    #             del img_t
-    #             del imgs_batch
-    #
-    #             # calc distances
-    #             m, n = vector_query.size(0), vector_gal.size(0)
-    #
-    #             dist = torch.pow(vector_gal, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-    #                    torch.pow(vector_query, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    #             dist.addmm_(1, -2, vector_gal, vector_query.t())
-    #
-    #             query_ids = query_imgs[:,1]
-    #             gallery_ids = gal_imgs[:,1]
-    #             cmc, mAP = compute_accuracy(dist, query_ids, gallery_ids)
-    #             # print("cmc: " + str(cmc) + "; mAP: " + str(mAP))
-    #
-    #             # all = torch.empty(len(dist), 0)
-    #             # all = [torch.sum(torch.stack([k < dist[i][i] for k in dist[i]])) for i in range(len(dist))]
-    #             # all = torch.FloatTensor(all)
-    #
-    #             top1_.append(cmc[0])
-    #             top5_.append(cmc[4])
-    #             top10_.append(cmc[9])
-    #             mAP_.append(mAP)
-    #
-    #         top1 = np.mean(top1_)
-    #         top5 = np.mean(top5_)
-    #         top10 = np.mean(top10_)
-    #         mAP = np.mean(mAP_)
-    #         print(name2save + "top1: " + str(top1))
-    #         print(name2save + "top5: " + str(top5))
-    #         print(name2save + "top10: " + str(top10))
-    #         print(name2save + "mAP: " + str(mAP))
-    #
-    #
-    #
-    #         if writer is not None:
-    #             writer.add_scalar(name2save + 'Rank 1', top1, epoch)
-    #             writer.add_scalar(name2save + 'Rank 5', top5, epoch)
-    #             writer.add_scalar(name2save + 'Rank 10', top10, epoch)
-    #             # writer.add_scalar(name2save + 'mAP', mAP, epoch)
-    #
-    #         return top1
-    #
-    # # can be used to check if two vectors of the same person get mroe similar
-    # # function is not working for unsynchronized datasets
-    # def evaluate_one(self, query, gallery, print_freq, writer=None, epoch=None, root=None, height=None,
-    #                          width=None, root2=None, name2save=""):
-    #
-    #
-    #
-    #             # initialize loading and normalization
-    #             normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                      std=[0.229, 0.224, 0.225])
-    #
-    #             test_transformer = T.Compose([
-    #                 T.RectScale(height, width),
-    #                 T.ToTensor(),
-    #                 normalizer,
-    #             ])
-    #
-    #             fpath = root + '/images/' + query[0][0]
-    #
-    #             img = Image.open(fpath).convert('RGB')
-    #             img_t = test_transformer(img).cuda()
-    #             img_t = img_t.unsqueeze(0)
-    #
-    #             fpath = root2 + '/images/' + query[0][0]
-    #
-    #             img = Image.open(fpath).convert('RGB')
-    #             img_p = test_transformer(img).cuda()
-    #             img_p = img_p.unsqueeze(0)
-    #
-    #             print('retrain: ')
-    #             print(self.model(img_t))
-    #             print("orig: ")
-    #             print(self.model_cm(img_p))
-    #
-    #
-    # def evaluate_single_shot_cm(self, query, gallery, print_freq, writer=None, epoch=None, root1=None, height=None,
-    #                          width=None, root2=None, name2save=""):
-    #
-    #     with torch.no_grad():
-    #         torch.set_num_threads(1)
-    #
-    #         top1_ = []
-    #         top5_ = []
-    #         top10_ = []
-    #         mAP_ = []
-    #
-    #         # 10 evaluations, take average:
-    #         for i in range(30):
-    #             query_imgs, gal_imgs = get_rand_images(query, gallery)#, imgs_from_q, imgs_from_g)
-    #
-    #             # initialize loading and normalization
-    #             normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                      std=[0.229, 0.224, 0.225])
-    #
-    #             test_transformer = T.Compose([
-    #                 T.RectScale(height, width),
-    #                 T.ToTensor(),
-    #                 normalizer,
-    #             ])
-    #
-    #             # load gallery
-    #             imgs_batch = Variable().cuda()
-    #             for fname in query_imgs:
-    #                 fpath = root1 + '/images/' + fname[0]
-    #
-    #                 img = Image.open(fpath).convert('RGB')
-    #                 img_t = test_transformer(img).cuda()
-    #                 img_t = img_t.unsqueeze(0)
-    #                 imgs_batch = torch.cat([imgs_batch, img_t], 0)
-    #
-    #             self.model.eval()
-    #             vector_gal = self.model(imgs_batch)
-    #
-    #             del img_t
-    #             del imgs_batch
-    #
-    #             # load probe/query
-    #             imgs_batch = Variable().cuda()
-    #             for fname in gal_imgs:
-    #                 fpath = root2 + '/images/' + fname[0]
-    #
-    #                 img = Image.open(fpath).convert('RGB')
-    #                 img_t = test_transformer(img).cuda()
-    #                 img_t = img_t.unsqueeze(0)
-    #
-    #                 imgs_batch = torch.cat([imgs_batch, img_t], 0)
-    #
-    #             self.model_cm.eval()
-    #             vector_query = self.model_cm(imgs_batch)
-    #
-    #             del img_t
-    #             del imgs_batch
-    #
-    #             # calc distances
-    #             m, n = vector_query.size(0), vector_gal.size(0)
-    #
-    #             dist = torch.pow(vector_gal, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-    #                    torch.pow(vector_query, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    #             dist.addmm_(1, -2, vector_gal, vector_query.t())
-    #
-    #             query_ids = query_imgs[:,1]
-    #             gallery_ids = gal_imgs[:,1]
-    #
-    #             cmc, mAP = compute_accuracy(dist, query_ids, gallery_ids)
-    #             # print("cmc: " + str(cmc) + "; mAP: " + str(mAP))
-    #
-    #             # all = torch.empty(len(dist), 0)
-    #             # all = [torch.sum(torch.stack([k < dist[i][i] for k in dist[i]])) for i in range(len(dist))]
-    #             # all = torch.FloatTensor(all)
-    #
-    #             top1_.append(cmc[0])
-    #             top5_.append(cmc[4])
-    #             top10_.append(cmc[9])
-    #             mAP_.append(mAP)
-    #
-    #         top1 = np.mean(top1_)
-    #         top5 = np.mean(top5_)
-    #         top10 = np.mean(top10_)
-    #         mAP = np.mean(mAP_)
-    #         print(name2save + "top1: " + str(top1))
-    #         print(name2save + "top5: " + str(top5))
-    #         print(name2save + "top10: " + str(top10))
-    #         print(name2save + "mAP: " + str(mAP))
-    #
-    #
-    #         if writer is not None:
-    #             writer.add_scalar(name2save + 'Rank 1', top1, epoch)
-    #             writer.add_scalar(name2save + 'Rank 5', top5, epoch)
-    #             writer.add_scalar(name2save + 'Rank 10', top10, epoch)
-    #             writer.add_scalar(name2save + 'mAP', mAP, epoch)
-    #
-    #         return top1
 
     def evaluate_all_and_save_sysu(self, query, gallery, save_to, height=None, width=None):
 
@@ -755,7 +530,7 @@ def get_rand_images(query, gallery):
 #     return cmc, mAP
 
 
-def get_rand(query, gallery, query_am=20, gal_am=10):
+def get_rand(query, gallery, query_am=50, gal_am=50):
     nums = np.array([i[1] for i in gallery])
     vec = [np.where(nums == i)[0] for i in range(nums.max()) if np.where(nums == i)[0].size > 0]
     rand_ = np.sort(np.array([np.random.choice(x, gal_am) for x in vec]).flatten())

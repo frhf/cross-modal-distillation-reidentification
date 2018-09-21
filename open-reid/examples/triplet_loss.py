@@ -106,6 +106,9 @@ def main(args):
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
 
+    name_val = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
+    name_test = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
+
     use_all = True
 
     top1 = 0
@@ -253,9 +256,9 @@ def main(args):
     model.module.load_state_dict(checkpoint['state_dict'])
     print(checkpoint['epoch'])
     evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
-                       calc_cmc=True, use_all=use_all)
+                       calc_cmc=True, use_all=use_all, final=name_val)
     evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
-                       calc_cmc=True, use_all=use_all)
+                       calc_cmc=True, use_all=use_all, final=name_test)
 
 
 if __name__ == '__main__':

@@ -45,6 +45,12 @@ def main(args):
 
     # from_ = 'tum'
     # to_ = 'tum_depth'
+    oldstr = 'f-' + args.from_ + '-t-' + args.to_ + '-' + args.name + '-split' + str(args.split_id) + '-val'
+    name_val = oldstr.replace("/", "")
+
+    oldstr = 'f-' + args.from_ + '-t-' + args.to_ + '-' + args.name + '-split' + str(args.split_id) + '-test'
+    name_test = oldstr.replace("/", "")
+    print(name_test)
 
     path_to_save_gt = osp.join(args.logdir, args.from_, args.path_to_orig)
     path_to_origmodel = osp.join(path_to_save_gt, 'model_best.pth.tar')
@@ -75,11 +81,12 @@ def main(args):
     if not os.path.exists(path_to_retsavemodel):
         os.makedirs(path_to_retsavemodel)
 
-    retrainer = Retrainer(path_to_origmodel, dropout=0.5)
+    retrainer = Retrainer(path_to_origmodel, dropout=0.5, freeze_model=args.freeze_model, load_weights=args.load_weights)
     # retrainer = Retrainer(path_to_retstartmodel, path_to_origmodel, dropout=0.3, freeze_model=True)
 
     retrainer.retrain(args.to_, args.from_, path_to_save_gt, batch_size=64, epochs=30, combine_trainval=False, workers=3,
-                      path_to_retmodel=path_to_retsavemodel, evaluate=args.evaluate, split_id=args.split_id)
+                      path_to_retmodel=path_to_retsavemodel, evaluate=args.evaluate, split_id=args.split_id, name_val=name_val,
+                      name_test=name_test)
     # retrainer.re_evaluate_retrain(to_, from_, path_to_save_gt, batch_size=64, combine_trainval=False,
     #                            workers=3, path_to_retsavemodel=path_to_retsavemodel)
 
@@ -97,5 +104,16 @@ if __name__ == '__main__':
     parser.add_argument('--path-to-orig', type=str) # 'train/triplet-resnet18/'
     parser.add_argument('--name', type=str) # 'triplet/same_ep_av/'
     parser.add_argument('--split-id', type=int, default=0)
+
+    # feature_parser = parser.add_mutually_exclusive_group(required=False)
+    parser.add_argument('--dont-freeze-model', dest='freeze_model', action='store_false')
+    parser.add_argument('--dont-load-weights', dest='load_weights', action='store_false')
+    parser.set_defaults(freeze_model=True)
+    parser.set_defaults(load_weights=True)
+
+
+    # parser.add_argument('--freeze-model', type=bool, action='store_true')
+    # parser.add_argument('--load-weights', type=bool, action='store_false')
+
 
     main(parser.parse_args())

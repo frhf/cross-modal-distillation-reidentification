@@ -101,6 +101,10 @@ def main(args):
     torch.set_num_threads(1)
 
 
+    name_val = 'zp' + args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
+    name_test = 'zp' + args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
+    print(name_test)
+
     print(args)
 
     # Create data loaders
@@ -145,18 +149,19 @@ def main(args):
         # metric.train(model, train_loader)
         # save_to = '/export/livia/data/FHafner/data/logdir/sysu_onestream/test1/'
         # evaluator.evaluate_all_and_save_sysu(test_loader1, test_loader2, save_to, height=args.height, width=args.width)
+        model.num_classes = 0
 
         print("Validation: ")
         evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
                               dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
-                              metric=None, calc_cmc=True, use_all=use_all)
+                              metric=None, calc_cmc=True, use_all=use_all, final=name_val)
 
 
         print("Test:")
         evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
                               dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-                              metric=None, calc_cmc=True, use_all=use_all, test=True)
-
+                              metric=None, calc_cmc=True, use_all=use_all, test=True, final=name_test)
+        model.num_classes = num_classes
 
         # evaluator.evaluate_single_shot(dataset1.val_probe, dataset1.val_probe, 0, None, 0,
         #                                root=osp.join(args.data_dir, args.dataset1), height=args.height,
@@ -249,10 +254,13 @@ def main(args):
             continue
 
         if epoch % 10 == 0 or top1 == 0:
+            model.num_classes = 0
+
             top1 = evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
                                   dataset2.val_probe, dataset2.val_gallery, 10, writer=writer, epoch=epoch+1,
                                   metric=None, calc_cmc=True, use_all=use_all)
 
+            model.num_classes = num_classes
 
             is_best = top1 > best_top1
             best_top1 = max(top1, best_top1)
@@ -273,13 +281,17 @@ def main(args):
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     model.load_state_dict(checkpoint['state_dict'])
 
+    model.num_classes = 0
+
     evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
                                  dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
-                                 metric=None, calc_cmc=True, use_all=use_all)
+                                 metric=None, calc_cmc=True, use_all=use_all, final=name_val)
 
     evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
                                  dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-                                 metric=None, calc_cmc=True, use_all=use_all, test=True)
+                                 metric=None, calc_cmc=True, use_all=use_all, test=True, final=name_test)
+    model.num_classes = num_classes
+
 
 
 if __name__ == '__main__':

@@ -34,20 +34,22 @@ from collections import OrderedDict
 
 
 class Retrainer:
-    def __init__(self, path_to_model, path_to_origmodel=None, dropout=0, freeze_model=False):
+    def __init__(self, path_to_model, path_to_origmodel=None, dropout=0, freeze_model=True, load_weights=True):
         self.path_to_model = path_to_model
         self.dropout = dropout
         self.freeze_model = freeze_model
-        self.model = self.load_model(self.path_to_model)
+        # self.load_weights = load_weights
+        self.model = self.load_model(self.path_to_model, load_weights)
         if path_to_origmodel is None:
-            self.model_orig = copy.deepcopy(self.model)
+            # self.model_orig = copy.deepcopy(self.model)
+            self.model_orig = self.load_model(self.path_to_model, load_weights=True)
             self.model_orig.eval()
         else:
             self.path_to_origmodel = path_to_origmodel
             self.model_orig = self.load_model(self.path_to_origmodel)
             self.model_orig.eval()
 
-    def load_model(self, path_to_model):
+    def load_model(self, path_to_model, load_weights):
         name_dict = {
             110: 'resnet18',
             190: 'resnet34',
@@ -61,25 +63,36 @@ class Retrainer:
         self.num_classes = checkpoint['state_dict']['classifier.weight'].shape[0]
         model = models.create(self.model_arch, num_features=self.num_features,
                           dropout=self.dropout, num_classes=self.num_classes)
-        model.load_state_dict(checkpoint['state_dict'])
+
+        model.num_classes = 0
+
+        if load_weights:
+            model.load_state_dict(checkpoint['state_dict'])
         model.cuda()
 
+        # local variable to freeze later parts of model
+        freeze_local = False
         if self.freeze_model:
             for params in model.parameters():
-                if len(params) == 256:
-                    break
-                else:
+                if self.model_arch == 'resnet18' and len(params) == 256:
+                    freeze_local = True
+                if self.model_arch == 'resnet50' and len(params) == 1024:
+                    freeze_local = True
+                if freeze_local:
                     params.requires_grad = False
 
         return model
 
     def retrain(self, dataset_ret, dataset_orig, path_to_gt, root='/export/livia/data/FHafner/data/',
                 epochs=50, split_id=0, start_epoch=1, batch_size=64, workers=0,
-                combine_trainval=False, path_to_retmodel=None, evaluate=None):
+                combine_trainval=False, path_to_retmodel=None, evaluate=None, name_val=[],
+                name_test=[]):
 
         epochs += 1
 
         use_all = True
+        if dataset_ret =='sysu' or dataset_ret == 'sysu_ir':
+            use_all = False
         # if dataset_ret == 'biwi' or  dataset_ret == 'biwi_depth' or dataset_ret == 'pku' or dataset_ret == 'pku_depth':
         #     use_all = True
         # else:
@@ -113,9 +126,9 @@ class Retrainer:
 
             print("Modality 1: " + val_loader_int.dataset.root)
             print("Modality 2: " + val_loader_int_orig_.dataset.root)
-            # evaluator.make_comp_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
-            #                       dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
-            #                       metric=None, calc_cmc=True, use_all=use_all)
+            evaluator.make_comp_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
+                                  dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
+                                  metric=None, calc_cmc=True, use_all=use_all)
 
             # evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
             #                       dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=None, epoch=0,
@@ -123,7 +136,7 @@ class Retrainer:
             print("Test:")
             evaluator.evaluate_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
                                   dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
-                                  metric=None, calc_cmc=True, use_all=use_all, test=True)
+                                  metric=None, calc_cmc=True, use_all=use_all, test=True, final=name_test)
 
             if dataset_ret == 'sysu' or dataset_ret == 'sysu_ir':
                 evaluator.evaluate_all_and_save_sysu(test_loader, test_loader_orig_, path_to_retmodel, height=height,
@@ -142,11 +155,12 @@ class Retrainer:
 
         param_groups = self.model.parameters()
 
-        if dataset_ret == 'biwi' or dataset_ret == 'biwi_depth' or dataset_ret =='synthia' or \
-                dataset_ret == 'synthia_depth':
-            lr = 0.000001
-        else:
-            lr = 0.00002
+        lr = 0.000002
+        # if dataset_ret == 'biwi' or dataset_ret == 'biwi_depth' or dataset_ret =='synthia' or \
+        #         dataset_ret == 'synthia_depth':
+        #     lr = 0.000002
+        # else:
+        #     lr = 0.00002
 
         optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=lr,
                                     momentum=0.9,
@@ -246,11 +260,11 @@ class Retrainer:
 
         evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
                               dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=None, epoch=0,
-                              metric=None, calc_cmc=True, use_all=use_all)
+                              metric=None, calc_cmc=True, use_all=use_all, final=name_val)
         print("Test:")
         evaluator.evaluate_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
                               dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
-                              metric=None, calc_cmc=True, use_all=use_all)
+                              metric=None, calc_cmc=True, use_all=use_all, final=name_test)
 
 
 

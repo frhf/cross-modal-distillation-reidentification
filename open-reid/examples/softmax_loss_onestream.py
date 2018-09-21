@@ -100,6 +100,9 @@ def main(args):
     use_all = True
     torch.set_num_threads(1)
 
+    name_val = args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
+    name_test = args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
+    print(name_test)
 
     print(args)
 
@@ -131,7 +134,7 @@ def main(args):
         print("=> Start epoch {}  best top1 {:.1%}"
               .format(start_epoch, best_top1))
     # model = nn.DataParallel(model).cuda()
-
+    model.num_classes = 0
     # writer for summary
     logs_dir_tb = args.logs_dir + '/tensorboard/'
     if not os.path.exists(logs_dir_tb):
@@ -154,12 +157,14 @@ def main(args):
         # evaluator.make_comp_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
         #                       dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
         #                       metric=None, calc_cmc=True, use_all=use_all)
+        model.num_classes = 0
 
         print("Test:")
         evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
                               dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-                              metric=None, calc_cmc=True, use_all=use_all)
+                              metric=None, calc_cmc=True, use_all=use_all, final=name_test)
 
+        model.num_classes = num_classes
 
         # evaluator.evaluate_single_shot(dataset1.val_probe, dataset1.val_probe, 0, None, 0,
         #                                root=osp.join(args.data_dir, args.dataset1), height=args.height,
@@ -239,10 +244,13 @@ def main(args):
     #                                   root1=osp.join(args.data_dir, args.dataset2), height=args.height,
     #                                   width=args.width, root2=osp.join(args.data_dir, args.dataset1),
     #                                   name2save="Cross modality val 1")
+    model.num_classes = 0
 
     evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
                           dataset2.val_probe, dataset2.val_gallery, 10, writer=writer, epoch=None,
                           metric=None, calc_cmc=True, use_all=use_all)
+
+    model.num_classes = num_classes
 
     top1 = 0
     # Start training
@@ -253,6 +261,8 @@ def main(args):
             continue
 
         if epoch % 10 == 0 or top1 == 0:
+            model.num_classes = 0
+
             top1 = evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
                                   dataset2.val_probe, dataset2.val_gallery, 10, writer=writer, epoch=epoch+1,
                                   metric=None, calc_cmc=True, use_all=use_all)
@@ -272,18 +282,23 @@ def main(args):
             print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.
                   format(epoch, top1, best_top1, ' *' if is_best else ''))
 
+            model.num_classes = num_classes
+
     # Final test
     print('Test with best model:')
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     model.load_state_dict(checkpoint['state_dict'])
 
+    model.num_classes = 0
+
+
     evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
                                  dataset2.val_probe, dataset2.val_gallery, 10, writer=None, epoch=None,
-                                 metric=None, calc_cmc=True, use_all=use_all)
+                                 metric=None, calc_cmc=True, use_all=use_all, final=name_val)
 
     evaluator.evaluate_cm(test_loader1, test_loader2, dataset1.query, dataset1.gallery,
                                  dataset2.query, dataset2.gallery, 10, writer=None, epoch=None,
-                                 metric=None, calc_cmc=True, use_all=use_all)
+                                 metric=None, calc_cmc=True, use_all=use_all, final=name_test)
 
 
 if __name__ == '__main__':
