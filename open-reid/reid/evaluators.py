@@ -5,8 +5,9 @@ from collections import OrderedDict
 import torch
 import numpy as np
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('.')
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
 
 from torch.autograd import Variable
 
@@ -127,38 +128,28 @@ def evaluate_all(distmat, query=None, gallery=None,
     beg = time.time()
     mAP = mean_ap(distmat, query_ids, gallery_ids, query_cams, gallery_cams, use_all=use_all, same=same)
     print(save_as + 'Mean AP: {:4.1%}'.format(mAP))
-    # print("mAP: " + str(time.time() - beg))
 
     if calc_cmc:
         # Compute all kinds of CMC scores
         cmc_configs = {
-            # 'allshots': dict(separate_camera_set=False,
-            #                  single_gallery_shot=False,
-            #                  first_match_break=False),
             'cuhk03': dict(separate_camera_set=True,
                            single_gallery_shot=True,
                            first_match_break=False,
                            use_all=use_all,
                            same=same),
-            # 'market1501': dict(separate_camera_set=False,
-            #                    single_gallery_shot=False,
-            #                    first_match_break=True)}
         }
         cmc_scores = {name: cmc(distmat, query_ids, gallery_ids,
                                 query_cams, gallery_cams, **params)
                       for name, params in cmc_configs.items()}
 
-        #print('CMC Scores{:>12}{:>12}{:>12}'
-         #     .format('allshots', 'cuhk03', 'market1501'))
+
         print(save_as)
-        print('CMC Scores{:>12}'#{:>12}{:>12}'
-             .format('cuhk03')) #'allshots', 'cuhk03', 'market1501'))
+        print('CMC Scores{:>12}'
+             .format('cuhk03')) 
         for k in cmc_topk:
-            print('  top-{:<4}{:12.1%}'#{:12.1%}{:12.1%}'
-                  .format(k, #cmc_scores['allshots'][k - 1],
-                          cmc_scores['cuhk03'][k - 1]))#,
-                          #cmc_scores['market1501'][k - 1]))
-    #
+            print('  top-{:<4}{:12.1%}'
+                  .format(k, cmc_scores['cuhk03'][k - 1])),
+                      
     if writer is not None:
         writer.add_scalar(save_as + ' Rank 1', cmc_scores['cuhk03'][0], epoch)
         writer.add_scalar(save_as + 'Rank 5', cmc_scores['cuhk03'][4], epoch)
@@ -172,8 +163,6 @@ def evaluate_all(distmat, query=None, gallery=None,
         pickle.dump([cmc_scores['cuhk03'][0], cmc_scores['cuhk03'][4], cmc_scores['cuhk03'][9], mAP], file)
         file.close()
 
-    # Use the allshots cmc top-1 score for validation criterion
-    # return cmc_scores['cuhk03'][0]
     return mAP
 
 class Evaluator(object):
@@ -191,6 +180,7 @@ class Evaluator(object):
         torch.set_num_threads(1)
         features, _ = extract_features(self.model, data_loader, print_freq)
 
+	# Exception for specific datasets
         if data_loader.dataset.root == '/export/livia/data/FHafner/data/synthia_depth/images' or \
                 data_loader.dataset.root == '/export/livia/data/FHafner/data/synthia/images' or \
                 data_loader.dataset.root == '/export/livia/data/FHafner/data/iit_depth/images' or \
@@ -200,6 +190,7 @@ class Evaluator(object):
         else:
             query_ad, gallery_ad = get_rand(query, gallery)
 
+	# If all images in gallery and query are supposed to be used, avoid that exactly same image is evaluated.
         if use_all:
             same = getsame(query_ad, gallery_ad)
         else:
@@ -209,6 +200,7 @@ class Evaluator(object):
         return evaluate_all(distmat, query=query_ad, gallery=gallery_ad, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
                             use_all=use_all, same=same, final=final)
 
+    # Use for evaluation of cross-modal re-identification
     def evaluate_cm(self, data_loader1, data_loader2, query1, gallery1, query2, gallery2, print_freq, writer=None,
                     epoch=None, metric=None, calc_cmc=False, use_all=False, test=False, final=[]):
         torch.set_num_threads(1)
@@ -216,6 +208,8 @@ class Evaluator(object):
         features2, _ = extract_features(self.model_cm, data_loader2, print_freq)
 
 
+	# Exception for Synthia and Sysu.
+	# Else find same 
         if data_loader1.dataset.root.split('/')[-2] == 'synthia_depth' or \
                 data_loader1.dataset.root.split('/')[-2] == 'synthia':
             query1_r = query1
@@ -278,7 +272,7 @@ class Evaluator(object):
         return cm1 + cm2
 
 
-
+    # function which gives visualization for cross modal task
     def make_comp_cm(self, data_loader1, data_loader2, query1, gallery1, query2, gallery2, print_freq, writer=None, epoch=None,
                   metric=None, calc_cmc=False,
                   use_all=False):
@@ -298,11 +292,10 @@ class Evaluator(object):
         else:
             same = None
 
-        # distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
         make_comparison_img_cm(data_loader1.dataset.root, data_loader2.dataset.root, distmat_cm1, query_ad, gallery_ad)
 
 
-
+    # function which gives visualization for single modal task
     def make_comp(self, data_loader1, query, gallery, print_freq, writer=None, epoch=None, metric=None, calc_cmc=False,
                  use_all=False, data_loader2=None):
         if data_loader2 is None:
@@ -319,7 +312,7 @@ class Evaluator(object):
             same = None
 
         distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
-        # make_comparison_img(data_loader1.dataset.root, data_loader2.dataset.root, distmat, query_ad, gallery_ad)
+        make_comparison_img(data_loader1.dataset.root, data_loader2.dataset.root, distmat, query_ad, gallery_ad)
 
 
     # evaluates validation loss
@@ -352,9 +345,7 @@ class Evaluator(object):
 
             return overall_loss_n
 
-
-
-
+    # function which is only for SYSU dataset. Gives output according to evaluation scheme
     def evaluate_all_and_save_sysu(self, query, gallery, save_to, height=None, width=None):
 
         with torch.no_grad():
@@ -409,44 +400,7 @@ class Evaluator(object):
             sio.savemat(save_to + '/np_vector.mat', {'vect': array_})
 
 
-
-# def cmc_partly(features,labels, writer, epoch):
-#
-#         x = torch.cat([features[f].unsqueeze(0) for f in features], 0)
-#         y = x
-#         m, n = x.size(0), y.size(0)
-#         x = x.view(m, -1)
-#         y = y.view(n, -1)
-#
-#         # this is a2-2ab+b2
-#         dist = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-#                torch.pow(y, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-#         dist.addmm_(1, -2, x, y.t())
-#
-#         labs = [labels[f] for f in labels]
-#
-#         matches = np.asarray([[(las==la).numpy() for la in labs] for las in labs])
-#         sorted, indices = dist.sort()
-#         cmc = matches[indices]
-#
-#         stands = [matches[i][indices[i]] for i in range (256)]
-#         stands = np.array(stands)
-#         cmc = [1, 2, 5]
-#
-#         acc1 = np.sum(stands[:,1])/len(stands)
-#         acc5 = np.sum(np.any(stands[:, 1:5], 1)) / len(stands)
-#         acc10 = np.sum(np.any(stands[:, 1:10], 1)) / len(stands)
-#
-#         if writer is not None:
-#             writer.add_scalar('Rank 1', acc1, epoch)
-#             writer.add_scalar('Rank 5', acc5, epoch)
-#             writer.add_scalar('Rank 10', acc10, epoch)
-#             #writer.add_scalar('mAP', mAP, epoch)
-#
-#         print("Accuracy 1: {}\n Accuracy 5: {}\n Accuracy 10: {}\n".format(acc1, acc5, acc10))
-#
-#         return acc1
-
+# get random images from query and gallery
 def get_rand_images(query, gallery):
     # choose randomly from gallery and query
     liste = np.asarray([q[1] for q in query])
@@ -464,72 +418,7 @@ def get_rand_images(query, gallery):
     return query_imgs, gal_imgs
 
 
-# def compute_accuracy(distmat, query_ids, gallery_ids, topk=10):
-#     single_gallery_shot = False
-#     first_match_break = True
-#     separate_camera_set = False
-#     m, n = distmat.shape
-#     # Fill up default values
-#     query_cams = np.zeros(m).astype(np.int32)
-#     gallery_cams = 2 * np.ones(n).astype(np.int32)
-#     # Ensure numpy array
-#     query_ids = np.asarray(query_ids)
-#     gallery_ids = np.asarray(gallery_ids)
-#     query_cams = np.asarray(query_cams)
-#     gallery_cams = np.asarray(gallery_cams)
-#     # Sort and find correct matches
-#     indices = np.argsort(distmat, axis=1)
-#     matches = (gallery_ids[indices] == query_ids[:, np.newaxis])
-#
-#     # Compute AP for each query
-#     ret = np.zeros(topk)
-#     num_valid_queries = 0
-#     aps = []
-#     for i in range(m):
-#         # Filter out the same id and same camera
-#         valid = ((gallery_ids[indices[i]] != query_ids[i]) | (gallery_cams[indices[i]] != query_cams[i]))
-#         if not np.any(matches[i, valid]): continue
-#         # Compute mAP
-#         y_true = matches[i, valid]
-#         y_score = -distmat[i][indices[i]]
-#         # [valid]
-#         aps.append(average_precision_score(y_true, y_score))
-#
-#         # Compute CMC
-#         if separate_camera_set:
-#             # Filter out samples from same camera
-#             valid &= (gallery_cams[indices[i]] != query_cams[i])
-#
-#         if single_gallery_shot:
-#             repeat = 10
-#             gids = gallery_ids[indices[i][valid]]
-#             inds = np.where(valid)[0]
-#             ids_dict = defaultdict(list)
-#             for j, x in zip(inds, gids):
-#                 ids_dict[x].append(j)
-#         else:
-#             repeat = 1
-#         for _ in range(repeat):
-#             if single_gallery_shot:
-#                 # Randomly choose one instance for each id
-#                 sampled = (valid & _unique_sample(ids_dict, len(valid)))
-#                 index = np.nonzero(matches[i, sampled])[0]
-#             else:
-#                 index = np.nonzero(matches[i, valid])[0]
-#             delta = 1. / (len(index) * repeat)
-#             for j, k in enumerate(index):
-#                 if k - j >= topk: break
-#                 if first_match_break:
-#                     ret[k - j] += 1
-#                     break
-#                 ret[k - j] += delta
-#         num_valid_queries += 1
-#
-#     mAP = np.mean(aps)
-#     cmc = ret.cumsum() / num_valid_queries
-#     return cmc, mAP
-
-
+# get random images from query and gallery
 def get_rand(query, gallery, query_am=50, gal_am=50):
     nums = np.array([i[1] for i in gallery])
     vec = [np.where(nums == i)[0] for i in range(nums.max()) if np.where(nums == i)[0].size > 0]
@@ -543,7 +432,7 @@ def get_rand(query, gallery, query_am=50, gal_am=50):
 
     return query_ad, gallery_ad
 
-
+# get binary mask if query and gallery images contain exactly the same images.
 def getsame(query, gallery):
 
     same = np.ones((len(query), len(gallery)), dtype=bool)

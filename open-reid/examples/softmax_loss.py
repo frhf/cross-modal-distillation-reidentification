@@ -10,8 +10,7 @@ from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('../reid')
 
 import datasets
 import models
@@ -28,6 +27,7 @@ from tensorboardX import SummaryWriter
 import os
 
 
+# Function which constructs dataloader.
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
              combine_trainval, zero_pad):
     root = osp.join(data_dir, name)
@@ -94,22 +94,22 @@ def main(args):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     cudnn.benchmark = True
+    # If true all images in gallery and query set are used
+    use_all = True
 
+    # Names in which the result files are saved are constructed. 
     name_val = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
     name_test = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
     print(name_test)
 
-    use_all = True
-    # writer for summary
 
 
-    # Create data loaders
+    # Create data loaders -> image size
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
                                   (256, 128)
 
-    # args.dataset is dataset name; split = ?; data_dir is position of data; height,width is
-    # how input looks like; batch_size; workers?; combine trainval gives better accuracy
+    # Constructs dataset and dataloaders 
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.workers,
@@ -133,9 +133,8 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
-        # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
-        #                    metric=None, calc_cmc=False, use_all=use_all)
-        # evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+	# Makes comparison image        
+	# evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
         #                    calc_cmc=True, use_all=use_all)
         model.num_classes = 0
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
@@ -185,7 +184,8 @@ def main(args):
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
-        adjust_lr(epoch)
+        
+	adjust_lr(epoch)
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
         if epoch < args.start_save:
             continue

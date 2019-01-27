@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('..')
 
 
 from utils import to_torch

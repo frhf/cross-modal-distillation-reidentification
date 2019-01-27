@@ -11,8 +11,8 @@ from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+ys.path.append('../reid')
+sys.path.append('../reid/utils')
 
 import datasets
 import models
@@ -41,20 +41,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
     num_classes = (dataset.num_trainval_ids if combine_trainval
                    else dataset.num_train_ids)
 
-    # if name == 'tum' or name =='tum_depth':
-    #     train_transformer = T.Compose([
-    #         T.RandomSizedRectCropDepth(height, width),
-    #         T.RandomHorizontalFlip(),
-    #         T.ToTensor(),
-    #         normalizer,
-    #     ])
-    #
-    #     test_transformer = T.Compose([
-    #         T.RectScaleDepth(height, width),
-    #         T.ToTensor(),
-    #         normalizer,
-    #     ])
-    # else:
     train_transformer = T.Compose([
         T.RandomSizedRectCrop(height, width),
         T.RandomHorizontalFlip(),
@@ -75,21 +61,11 @@ def get_data(name, split_id, data_dir, height, width, batch_size, num_instances,
         sampler=RandomIdentitySampler(train_set, num_instances),
         pin_memory=False, drop_last=True)
 
-
     val_loader = DataLoader(
         Preprocessor(dataset.val_gallery + dataset.val_probe, root=dataset.images_dir,
                      transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=True, pin_memory=False)
-
-    # dataset.query = [i for no, i in enumerate(dataset.query) if no % 20 == 0]
-    # dataset.gallery = [i for no, i in enumerate(dataset.gallery) if no % 20 == 0]
-    #
-    # test_loader = DataLoader(
-    #     Preprocessor(list(set(query) | set(gallery)),
-    #                  root=dataset.images_dir, transform=test_transformer),
-    #     batch_size=batch_size, num_workers=workers,
-    #     shuffle=False, pin_memory=False)
 
     test_loader = DataLoader(
         Preprocessor(list(set(dataset.query) | set(dataset.gallery)),
@@ -116,7 +92,7 @@ def main(args):
     print(args)
 
     # Create data loaders
-    # num instances is instances in mini batch
+    # Num instances is instances in mini batch
     assert args.num_instances > 1, "num_instances should be greater than 1"
     assert args.batch_size % args.num_instances == 0, \
         'num_instances should divide batch_size'
@@ -124,18 +100,13 @@ def main(args):
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
                                   (256, 128)
 
-    # args.dataset is dataset name; data_dir is position of data; height,width is
-    # how input looks like; batch_size; combine trainval gives better accuracy
+    # load dataset
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.num_instances, args.workers,
                  args.combine_trainval)
 
     # Create model
-    # Hacking here to let the classifier be the last feature embedding layer
-    # Net structure: avgpool -> FC(1024) -> FC(args.features)
-
-    # bei triplet wird "hacking benoetigt
     model = models.create(args.arch, num_features=1024,
                           dropout=args.dropout, num_classes=args.features)
 
@@ -154,18 +125,14 @@ def main(args):
     evaluator = Evaluator(model)
     if args.evaluate:
         print('Test with best model:')
-        # evaluator.evaluate_single_shot(dataset.query, dataset.gallery, 1, None, 0,
-        #                                osp.join(args.data_dir, args.dataset), args.height, args.width, evaluations=5)
-        # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None, metric=None,
-        #                    calc_cmc=True)
-        # evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer=None, epoch=None,
-        #                           metric=None, calc_cmc=False, use_all=use_all)
-        evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
-                           calc_cmc=True, use_all=use_all)
+	# Makes visualization of results
+        #evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+        #                   calc_cmc=True, use_all=use_all)
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
                            calc_cmc=True, use_all=use_all)
         return
 
+    # ?? check
     if args.evaluate_cm:
         # ATTENTION HANDCRAFTED FOR TUM
         root = '/export/livia/data/FHafner/data/'
@@ -185,16 +152,12 @@ def main(args):
     if not os.path.exists(logs_dir_tb):
         os.makedirs(logs_dir_tb)
 
-    # if os.listdir(logs_dir_tb) != []:
-    #     raise Exception('There is already a trained model in the directory!')
-
     writer = SummaryWriter(logs_dir_tb)
 
     model = nn.DataParallel(model).cuda()
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
-
 
     # Criterion
     criterion = TripletLoss(margin=args.margin).cuda()
@@ -226,10 +189,8 @@ def main(args):
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
 
         if epoch % 10 == 0 or top1 == 0:
-
             top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, 1, writer, epoch,
                                       metric=None, calc_cmc=True, use_all=use_all)
-
 
         if epoch < args.start_save:
             continue
@@ -251,7 +212,6 @@ def main(args):
                   format(epoch, top1, best_top1, ' *' if is_best else ''))
 
     # Final test
-    # print('Test with best model:')
     checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
     model.module.load_state_dict(checkpoint['state_dict'])
     print(checkpoint['epoch'])

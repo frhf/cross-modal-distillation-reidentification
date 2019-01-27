@@ -6,8 +6,6 @@ import numpy as np
 import sys
 sys.path.append('..')
 
-
-#from ..utils.data import Dataset
 from utils.data import Dataset
 from utils.osutils import mkdir_if_missing
 from utils.serialization import write_json
