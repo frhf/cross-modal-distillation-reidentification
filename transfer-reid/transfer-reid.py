@@ -11,40 +11,14 @@ import os
 import os.path as osp
 import numpy as np
 
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('../open-reid/reid/')
+sys.path.append('../open-reid/reid/utils')
 
 
 def main(args):
-    # THINGS TO CHANGE:
-    # from_, to_, path to save, if new net: path to net
 
+    print("Start deep distillation")
 
-    # path_to_basemodel = logdir + 'sysu_ir/train/triplet_resnet18/model_best.pth.tar'
-    # path_to_save_gt = logdir + 'sysu_ir/train/triplet_resnet18/'
-    # path_to_basemodel = logdir + 'sysu/triplet_resnet18/model_best.pth.tar'
-    # path_to_save_gt = logdir + 'sysu/triplet_resnet18/'
-
-    # TUM
-    # path_to_basemodel = '//export/livia/data/FHafner/data/logdir/tum_depth/retrain/triplet_resnet18_control/' \
-    #                     'model_best.pth.tar'
-    # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/tum_depth/retrain/triplet_resnet18_control/'
-
-    # SYSU
-    # path_to_basemodel = '/export/livia/data/FHafner/data/logdir/sysu/triplet_resnet18/' \
-    #                  'model_best.pth.tar'
-    # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/sysu/triplet_resnet18/'
-    #
-    # SYSU_IR
-    # path_to_basemodel = '/export/livia/data/FHafner/data/logdir/sysu_ir/triplet_resnet18/' \
-    #                  'model_best.pth.tar'
-    # path_to_save_gt = '/export/livia/data/FHafner/data/logdir/sysu_ir/triplet_resnet18/'
-    print("start")
-    # from_ = 'tum_depth'
-    # to_ = 'tum'
-
-    # from_ = 'tum'
-    # to_ = 'tum_depth'
     oldstr = 'f-' + args.from_ + '-t-' + args.to_ + '-' + args.name + '-split' + str(args.split_id) + '-val'
     name_val = oldstr.replace("/", "")
 
@@ -110,10 +84,6 @@ if __name__ == '__main__':
     parser.add_argument('--dont-load-weights', dest='load_weights', action='store_false')
     parser.set_defaults(freeze_model=True)
     parser.set_defaults(load_weights=True)
-
-
-    # parser.add_argument('--freeze-model', type=bool, action='store_true')
-    # parser.add_argument('--load-weights', type=bool, action='store_false')
 
 
     main(parser.parse_args())
