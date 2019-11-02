@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics import average_precision_score
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('../utils')
 from utils import to_numpy
 from visualization_tools import calc_conf
 
