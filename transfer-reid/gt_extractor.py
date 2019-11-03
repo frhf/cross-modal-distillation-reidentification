@@ -9,8 +9,8 @@ import sys
 import glob
 import pickle
 
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid')
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('../open-reid/reid')
+sys.path.append('../open-reid/reid/utils')
 
 import models
 import datasets

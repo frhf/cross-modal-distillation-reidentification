@@ -1,4 +1,21 @@
 from __future__ import print_function, absolute_import
+import os
+import sys
+sys.path.append('../reid')
+sys.path.append('../utils')
+
+from tensorboardX import SummaryWriter
+from utils.serialization import load_checkpoint, save_checkpoint
+from utils.logging import Logger
+from utils.data.sampler import RandomIdentitySampler
+from utils.data.preprocessor import Preprocessor
+from utils.data import transforms as T
+from evaluators import Evaluator
+from trainers import Trainer
+from loss import TripletLoss
+from dist_metric import DistanceMetric
+import models
+import datasets
 import argparse
 import os.path as osp
 
@@ -8,23 +25,6 @@ import torch
 from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
-
-import sys
-sys.path.append('../reid')
-
-import datasets
-import models
-from dist_metric import DistanceMetric
-from loss import TripletLoss
-from trainers import Trainer
-from evaluators import Evaluator
-from utils.data import transforms as T
-from utils.data.preprocessor import Preprocessor
-from utils.data.sampler import RandomIdentitySampler
-from utils.logging import Logger
-from utils.serialization import load_checkpoint, save_checkpoint
-from tensorboardX import SummaryWriter
-import os
 
 
 # Function which constructs dataloader.
@@ -97,19 +97,19 @@ def main(args):
     # If true all images in gallery and query set are used
     use_all = True
 
-    # Names in which the result files are saved are constructed. 
-    name_val = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
-    name_test = args.dataset + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
+    # Names in which the result files are saved are constructed.
+    name_val = args.dataset + '-' + \
+        args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
+    name_test = args.dataset + '-' + \
+        args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
     print(name_test)
-
-
 
     # Create data loaders -> image size
     if args.height is None or args.width is None:
         args.height, args.width = (144, 56) if args.arch == 'inception' else \
                                   (256, 128)
 
-    # Constructs dataset and dataloaders 
+    # Constructs dataset and dataloaders
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.workers,
@@ -118,7 +118,6 @@ def main(args):
     # Create model
     model = models.create(args.arch, num_features=args.features,
                           dropout=args.dropout, num_classes=num_classes)
-
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -133,8 +132,8 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
-	# Makes comparison image        
-	# evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
+        # Makes comparison image
+        # evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
         #                    calc_cmc=True, use_all=use_all)
         model.num_classes = 0
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
@@ -155,7 +154,6 @@ def main(args):
 
     # Distance metric
     metric = DistanceMetric(algorithm=args.dist_metric)
-
 
     # Criterion
     criterion = nn.CrossEntropyLoss().cuda()
@@ -184,8 +182,8 @@ def main(args):
 
     # Start training
     for epoch in range(start_epoch, args.epochs):
-        
-	adjust_lr(epoch)
+
+        adjust_lr(epoch)
         trainer.train(epoch, train_loader, optimizer, args.print_freq, writer)
         if epoch < args.start_save:
             continue
@@ -265,7 +263,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default='/export/livia/data/FHafner/data')#osp.join(working_dir, 'data'))
+                        default='/export/livia/data/FHafner/data')  # osp.join(working_dir, 'data'))
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
     main(parser.parse_args())

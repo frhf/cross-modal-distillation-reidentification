@@ -6,8 +6,6 @@ import torch
 import numpy as np
 import sys
 sys.path.append('.')
-#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
-#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
 
 from torch.autograd import Variable
 
@@ -21,7 +19,7 @@ import os.path as osp
 from PIL import Image
 from sklearn.metrics import average_precision_score
 import scipy.io as sio
-from visualization_tools import make_comparison_img, make_comparison_img_cm
+from utils.visualization_tools import make_comparison_img, make_comparison_img_cm
 import pickle
 
 # evaluates NN and saves time for doing so
