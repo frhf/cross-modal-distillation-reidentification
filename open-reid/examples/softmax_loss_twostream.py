@@ -36,8 +36,8 @@ def get_data(name1, name2, split_id, data_dir, height, width, batch_size, worker
     dataset1 = datasets.create(name1, root1, split_id=split_id)
     dataset2 = datasets.create(name2, root2, split_id=split_id)
 
-    normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
+    normalizer = T.Normalize(mean=[0.46, 0.46, 0.46],
+                             std=[0.22, 0.22, 0.22])
 
     train_set1 = dataset1.trainval if combine_trainval else dataset1.train
     num_classes1 = (dataset1.num_trainval_ids if combine_trainval
@@ -60,8 +60,13 @@ def get_data(name1, name2, split_id, data_dir, height, width, batch_size, worker
         normalizer,
     ])
 
-    train_loader = DataLoader(
-        Preprocessor(train_set1, train_set2, root=dataset1.images_dir, root2=dataset2.images_dir,
+    train_loader1 = DataLoader(
+        Preprocessor(train_set1, root=dataset1.images_dir,
+                              transform=train_transformer),
+        batch_size=batch_size, num_workers=workers, shuffle=True, pin_memory=False, drop_last=True)
+
+    train_loader2 = DataLoader(
+        Preprocessor(train_set2, root=dataset2.images_dir,
                               transform=train_transformer),
         batch_size=batch_size, num_workers=workers, shuffle=True, pin_memory=False, drop_last=True)
 
@@ -89,7 +94,7 @@ def get_data(name1, name2, split_id, data_dir, height, width, batch_size, worker
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
 
-    return dataset1, dataset2, num_classes1, train_loader, val_loader1, val_loader2, test_loader1, test_loader2
+    return dataset1, dataset2, num_classes1, train_loader1, train_loader2, val_loader1, val_loader2, test_loader1, test_loader2
 
 
 def main(args):
@@ -113,7 +118,7 @@ def main(args):
 
     # args.dataset is dataset name; split = ?; data_dir is position of data; height,width is
     # how input looks like; batch_size; workers?; combine trainval gives better accuracy
-    dataset1, dataset2, num_classes, train_loader, val_loader1, val_loader2, test_loader1, test_loader2 = \
+    dataset1, dataset2, num_classes, train_loader1, train_loader2, val_loader1, val_loader2, test_loader1, test_loader2 = \
         get_data(args.dataset1, args.dataset2, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.workers,
                  args.combine_trainval)
@@ -121,7 +126,6 @@ def main(args):
     # Create model
     model = models.create(args.arch, num_features=args.features,
                           dropout=args.dropout, num_classes=num_classes)
-
 
     # Load from checkpoint
     start_epoch = best_top1 = 0
@@ -195,11 +199,13 @@ def main(args):
     # Start training
     for epoch in range(start_epoch, args.epochs):
         adjust_lr(epoch)
-        trainer.train(epoch+1, train_loader, optimizer, args.print_freq, writer)
+
+        trainer.train_twostream(epoch+1, train_loader1, train_loader2, optimizer, args.print_freq, writer)
+        
         if epoch < args.start_save:
             continue
 
-        if epoch % 10 == 0 or top1 == 0:
+        if epoch % 2 == 0 or top1 == 0:
             model.num_classes = 0
 
             top1 = evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,
