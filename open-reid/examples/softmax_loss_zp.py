@@ -10,8 +10,8 @@ from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/utils')
+sys.path.append('../reid')
+sys.path.append('../utils')
 
 import datasets
 import models
