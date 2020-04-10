@@ -79,8 +79,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
             delta = 1. / (len(index) * repeat)
             for j, k in enumerate(index):
                 if k - j >= topk: break
-                # first_match_break -> end when first match, means if at 3 is a match stop
-                # ret speichert wo der erste match ist
+
                 if first_match_break:
                     ret[k - j] += 1
                     break
@@ -113,13 +112,10 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
     indices = np.argsort(distmat, axis=1)
     matches = (gallery_ids[indices] == query_ids[:, np.newaxis])
 
-    # calc_conf(indices, gallery_ids, query_ids, use_all, gallery_cams, query_cams, same)
-
     # Compute AP for each query
     aps = []
     for i in range(m):
         # Filter out the same id and same camera
-        # filtert nur die von der gleichen camera raus
         valid = ((gallery_ids[indices[i]] != query_ids[i]) |
                 (gallery_cams[indices[i]] != query_cams[i]))
 

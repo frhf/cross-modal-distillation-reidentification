@@ -7,12 +7,10 @@ sys.path.append('../utils')
 from tensorboardX import SummaryWriter
 from utils.serialization import load_checkpoint, save_checkpoint
 from utils.logging import Logger
-from utils.data.sampler import RandomIdentitySampler
 from utils.data.preprocessor import Preprocessor
 from utils.data import transforms as T
 from evaluators import Evaluator
 from trainers import Trainer
-from loss import TripletLoss
 from dist_metric import DistanceMetric
 import models
 import datasets

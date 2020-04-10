@@ -19,13 +19,12 @@ import os.path as osp
 from PIL import Image
 from sklearn.metrics import average_precision_score
 import scipy.io as sio
-from utils.visualization_tools import make_comparison_img, make_comparison_img_cm
+
 import pickle
 
-# evaluates NN and saves time for doing so
+
 def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=None):
     # evaluation mode for model
-    torch.set_num_threads(1)
     model.cuda()
     model.eval()
 
@@ -47,7 +46,6 @@ def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=No
         data_time.update(time.time() - end)
         imgs_c = Variable(imgs.cuda(), requires_grad=False)
         # evaluates model
-        # outputs = extract_cnn_feature(model, imgs)
         outputs = model(imgs_c)
         outputs = outputs.data.cpu()
         imgs_c = None
@@ -70,7 +68,8 @@ def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=No
 
         if i == n_batches:
             break
-    print(output.shape)
+
+    return features, labels
 
 
 
@@ -78,9 +77,6 @@ def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=No
 def pairwise_distance(features1, query=None, gallery=None, metric=None, features2=None):
     if features2 is None:
         features2 = features1
-
-    torch.set_num_threads(1)
-
 
     if query is None and gallery is None:
         n = len(features)
@@ -156,7 +152,7 @@ def evaluate_all(distmat, query=None, gallery=None,
 
     if not final == []:
 
-        path = '/export/livia/data/FHafner/data/outputs_new/'
+        path = './results'
         file = open(path + final, 'ab+')
         pickle.dump([cmc_scores['cuhk03'][0], cmc_scores['cuhk03'][4], cmc_scores['cuhk03'][9], mAP], file)
         file.close()
@@ -175,18 +171,9 @@ class Evaluator(object):
 
     def evaluate(self, data_loader, query, gallery, print_freq, writer=None, epoch=None, metric=None, calc_cmc=False,
                  use_all=False, final=[]):
-        torch.set_num_threads(1)
         features, _ = extract_features(self.model, data_loader, print_freq)
 
-	# Exception for specific datasets
-        if data_loader.dataset.root == '/export/livia/data/FHafner/data/synthia_depth/images' or \
-                data_loader.dataset.root == '/export/livia/data/FHafner/data/synthia/images' or \
-                data_loader.dataset.root == '/export/livia/data/FHafner/data/iit_depth/images' or \
-                data_loader.dataset.root == '/export/livia/data/FHafner/data/iit/images':
-            query_ad = query
-            gallery_ad = gallery
-        else:
-            query_ad, gallery_ad = get_rand(query, gallery)
+        query_ad, gallery_ad = get_rand(query, gallery)
 
 	# If all images in gallery and query are supposed to be used, avoid that exactly same image is evaluated.
         if use_all:
@@ -195,36 +182,20 @@ class Evaluator(object):
             same = None
 
         distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
-        return evaluate_all(distmat, query=query_ad, gallery=gallery_ad, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
-                            use_all=use_all, same=same, final=final)
+        return evaluate_all(distmat, query=query_ad, gallery=gallery_ad, writer=writer, epoch=epoch, calc_cmc=calc_cmc,use_all=use_all, same=same, final=final)
 
     # Use for evaluation of cross-modal re-identification
     def evaluate_cm(self, data_loader1, data_loader2, query1, gallery1, query2, gallery2, print_freq, writer=None,
                     epoch=None, metric=None, calc_cmc=False, use_all=False, test=False, final=[]):
-        torch.set_num_threads(1)
+
         features1, _ = extract_features(self.model, data_loader1, print_freq)
         features2, _ = extract_features(self.model_cm, data_loader2, print_freq)
 
 
-	# Exception for Synthia and Sysu.
-	# Else find same 
-        if data_loader1.dataset.root.split('/')[-2] == 'synthia_depth' or \
-                data_loader1.dataset.root.split('/')[-2] == 'synthia':
-            query1_r = query1
-            gallery1_r = gallery1
-            query2_r = query2
-            gallery2_r = gallery2
-        elif data_loader1.dataset.root.split('/')[-2] == 'sysu' or \
-                data_loader1.dataset.root.split('/')[-2] == 'sysu_ir':
-            query1_r, gallery1_r = get_rand(query1, gallery1, query_am=20, gal_am=10)
-            query2_r, gallery2_r = get_rand(query2, gallery2, query_am=20, gal_am=10)
-        else:
-            query1_r, gallery1_r = get_rand(query1, gallery1, query_am=50, gal_am=50)
-            query2_r, gallery2_r = get_rand(query2, gallery2, query_am=50, gal_am=50)
+        query1_r, gallery1_r = get_rand(query1, gallery1, query_am=50, gal_am=50)
+        query2_r, gallery2_r = get_rand(query2, gallery2, query_am=50, gal_am=50)
 
-        # one modal 1
-        # ATTENTION SYSUIR TEST
-        if data_loader1.dataset.root.split("/")[-2]=='sysu_ir' and not test or use_all:
+        if use_all:
             use_all_temp = True
             same = getsame(query2_r, gallery2_r)
 
@@ -232,14 +203,13 @@ class Evaluator(object):
             use_all_temp = False
             same= None
 
-
         # one modal 1
         distmat1 = pairwise_distance(features1, query1_r, gallery1_r, metric=metric)
         evaluate_all(distmat1, query=query1_r, gallery=gallery1_r, writer=writer, epoch=epoch, calc_cmc=calc_cmc,
                             use_all=use_all_temp, save_as='Modality 1 ', same=same, final=final)
 
         # one modal 2
-        if data_loader2.dataset.root.split("/")[-2]=='sysu_ir' and not test or use_all:
+        if use_all:
             use_all_temp = True
             same = getsame(query2_r, gallery2_r)
 
@@ -270,54 +240,11 @@ class Evaluator(object):
         return cm1 + cm2
 
 
-    # function which gives visualization for cross modal task
-    def make_comp_cm(self, data_loader1, data_loader2, query1, gallery1, query2, gallery2, print_freq, writer=None, epoch=None,
-                  metric=None, calc_cmc=False,
-                  use_all=False):
-        if data_loader2 is None:
-            data_loader2 = data_loader1
-        torch.set_num_threads(1)
-        features1, _ = extract_features(self.model, data_loader1, print_freq)
-        features2, _ = extract_features(self.model_cm, data_loader2, print_freq)
-
-
-        query_ad, gallery_ad = get_rand(query1, gallery2, 1 ,1)
-        distmat_cm1 = pairwise_distance(features1, query_ad, gallery_ad, metric=metric, features2=features2)
-
-
-        if use_all:
-            same = getsame(query_ad, gallery_ad)
-        else:
-            same = None
-
-        make_comparison_img_cm(data_loader1.dataset.root, data_loader2.dataset.root, distmat_cm1, query_ad, gallery_ad)
-
-
-    # function which gives visualization for single modal task
-    def make_comp(self, data_loader1, query, gallery, print_freq, writer=None, epoch=None, metric=None, calc_cmc=False,
-                 use_all=False, data_loader2=None):
-        if data_loader2 is None:
-            data_loader2 = data_loader1
-        torch.set_num_threads(1)
-        features, _ = extract_features(self.model, data_loader1, print_freq)
-
-
-        query_ad, gallery_ad = get_rand(query, gallery, 1 ,1)
-
-        if use_all:
-            same = getsame(query_ad, gallery_ad)
-        else:
-            same = None
-
-        distmat = pairwise_distance(features, query_ad, gallery_ad, metric=metric)
-        make_comparison_img(data_loader1.dataset.root, data_loader2.dataset.root, distmat, query_ad, gallery_ad)
-
-
-    # evaluates validation loss
+    # evaluates validation loss for cross-modal task
     def evaluate_validationloss(self, val_loader_ret, val_loader_int, criterion, epoch, query, gallery, writer=None):
 
         with torch.no_grad():
-            torch.set_num_threads(1)
+
             self.model.eval()
             overall_loss = 0
             for i, batch in enumerate(val_loader_ret):
@@ -342,61 +269,6 @@ class Evaluator(object):
                 writer.add_scalar('ValidationLoss', overall_loss_n, epoch)
 
             return overall_loss_n
-
-    # function which is only for SYSU dataset. Gives output according to evaluation scheme
-    def evaluate_all_and_save_sysu(self, query, gallery, save_to, height=None, width=None):
-
-        with torch.no_grad():
-
-            # initialize loading and normalization
-            normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-
-            test_transformer = T.Compose([
-                T.RectScale(height, width),
-                T.ToTensor(),
-                normalizer,
-            ])
-
-            # load gallery
-            imgs_batch = Variable().cuda()
-            # out_all = np.empty(0)
-            array_ = np.empty([1, 6, 533, 50, self.model.num_classes])
-            self.model.cuda()
-            self.model.eval()
-
-            for i, inputs in enumerate(query):
-                imgs, a, _, _ = inputs
-                inputs = [Variable(imgs).cuda()]
-                outputs = self.model(*inputs)
-
-
-                liste = ([i.split('_') for i in a])
-                pers = [int(perso[0]) for perso in liste]
-                cam = [int(camo[1]) for camo in liste]
-                num = [int(numo[2].split('.')[0]) for numo in liste]
-                for i in range(len(outputs)):
-                    array_[0, cam[i] - 1, pers[i], num[i] - 1] = outputs[i]
-                    # out_all = np.concatenate([out_all, np.array(outputs)])
-
-            self.model_cm.cuda()
-            self.model_cm.eval()
-            for i, inputs in enumerate(gallery):
-                imgs, a, _, _ = inputs
-                inputs = [Variable(imgs).cuda()]
-                outputs = self.model_cm(*inputs)
-
-
-                liste = ([i.split('_') for i in a])
-                pers = [int(perso[0]) for perso in liste]
-                cam = [int(camo[1]) for camo in liste]
-                num = [int(numo[2].split('.')[0]) for numo in liste]
-                for i in range(len(outputs)):
-                    array_[0, cam[i] - 1, pers[i], num[i] - 1] = outputs[i]
-                    # out_all = np.concatenate([out_all, np.array(outputs)])
-
-            sio.savemat(save_to + '/np_vector.mat', {'vect': array_})
-
 
 # get random images from query and gallery
 def get_rand_images(query, gallery):

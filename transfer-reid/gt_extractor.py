@@ -91,7 +91,6 @@ class GtExtractor:
         with torch.no_grad():
             self.model.eval()
             self.model.cuda()
-            torch.set_num_threads(1)
 
             gt_eval = []
             for i, inputs in enumerate(loader):
@@ -122,8 +121,6 @@ class GtExtractor:
             dataset_eval = dataset.query + dataset.gallery
             dataset_eval = list(OrderedDict.fromkeys(dataset_eval))
 
-
-
         loader = DataLoader(
             Preprocessor(dataset_eval,
                          root=dataset.images_dir, transform=self.test_transformer),
@@ -133,7 +130,6 @@ class GtExtractor:
         with torch.no_grad():
             self.model.eval()
             self.model.cuda()
-            torch.set_num_threads(1)
 
             gt_eval = []
             for i, inputs in enumerate(loader):
@@ -154,9 +150,6 @@ class GtExtractor:
             idx = [int(ex[0]) == idxs for ex in gt_eval]
             tensrs = np.array([part[1] for i, part in enumerate(gt_eval) if idx[i] == True])
             mean_ = np.mean(tensrs, axis=0)
-            # print (idxs)
-            # if math.isnan(mean_):
-            #     pass
 
             dict_[idxs] = mean_
             mean_ = None

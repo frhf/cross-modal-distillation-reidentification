@@ -98,7 +98,6 @@ def main(args):
     cudnn.benchmark = True
 
     use_all = True
-    torch.set_num_threads(1)
 
     name_val = args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
     name_test = args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
@@ -200,6 +199,7 @@ def main(args):
             continue
 
         if epoch % 10 == 0 or top1 == 0:
+            
             model.num_classes = 0
 
             top1 = evaluator.evaluate_cm(val_loader1, val_loader2, dataset1.val_probe, dataset1.val_gallery,

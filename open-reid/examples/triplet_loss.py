@@ -11,7 +11,7 @@ from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
 import sys
-ys.path.append('../reid')
+sys.path.append('../reid')
 sys.path.append('../reid/utils')
 
 import datasets

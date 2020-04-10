@@ -98,8 +98,6 @@ def main(args):
     cudnn.benchmark = True
 
     use_all = True
-    torch.set_num_threads(1)
-
 
     name_val = 'zp' + args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
     name_test = 'zp' + args.dataset1 + '-' + args.dataset2 + '-' + args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'

@@ -91,19 +91,10 @@ class Retrainer:
         epochs += 1
 
         use_all = True
-        if dataset_ret =='sysu' or dataset_ret == 'sysu_ir':
-            use_all = False
-        # if dataset_ret == 'biwi' or  dataset_ret == 'biwi_depth' or dataset_ret == 'pku' or dataset_ret == 'pku_depth':
-        #     use_all = True
-        # else:
-        #     use_all = False
 
-        print(use_all)
 
         if self.model_arch == 'inception':
             height, width = (144, 56)
-        # elif dataset_ret == 'pku_depth' or dataset_ret == 'pku_depth':
-        #     height, width = (512, 256)
         else:
             height, width = (256, 128)
 
@@ -126,21 +117,12 @@ class Retrainer:
 
             print("Modality 1: " + val_loader_int.dataset.root)
             print("Modality 2: " + val_loader_int_orig_.dataset.root)
-            evaluator.make_comp_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
-                                  dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
-                                  metric=None, calc_cmc=True, use_all=use_all)
 
-            # evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
-            #                       dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=None, epoch=0,
-            #                       metric=None, calc_cmc=True, use_all=use_all)
             print("Test:")
             evaluator.evaluate_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
                                   dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
                                   metric=None, calc_cmc=True, use_all=use_all, test=True, final=name_test)
 
-            if dataset_ret == 'sysu' or dataset_ret == 'sysu_ir':
-                evaluator.evaluate_all_and_save_sysu(test_loader, test_loader_orig_, path_to_retmodel, height=height,
-                                                     width=width)
             return
 
         if not os.path.exists(path_to_retmodel + '/tensorboard'):
@@ -156,11 +138,6 @@ class Retrainer:
         param_groups = self.model.parameters()
 
         lr = 0.000002
-        # if dataset_ret == 'biwi' or dataset_ret == 'biwi_depth' or dataset_ret =='synthia' or \
-        #         dataset_ret == 'synthia_depth':
-        #     lr = 0.000002
-        # else:
-        #     lr = 0.00002
 
         optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=lr,
                                     momentum=0.9,
@@ -173,7 +150,7 @@ class Retrainer:
 
         evaluator = Evaluator(self.model, self.model_orig)
 
-        # best_top1 = float('Inf')
+
         best_top1 = 0
 
         def adjust_lr(epoch, lr):
@@ -187,20 +164,7 @@ class Retrainer:
         evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
                               dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=writer, epoch=0,
                               metric=None, calc_cmc=True, use_all=use_all)
-        # evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, writer,
-        #                                       0, root + dataset_ret, height, width,
-        #                                       name2save="Reid in Retrain Domain: ")
-        #
-        # evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height,
-        #                                width, name2save="Training data: ")
-        #
-        # # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, 0, root + dataset_ret, height, width,
-        # #                         root2=root + dataset_orig)
-        # # # evaluate CM
-        # top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, 0,
-        #                                   root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
-        # #
-        # # if epoch % 4 == 0:
+
         evaluator.evaluate_validationloss(val_loader_ret, val_loader_int, criterion, 0, dataset.gallery, dataset.query,
                                        writer=writer)
 
@@ -211,21 +175,6 @@ class Retrainer:
             trainer.train(epoch, train_loader, optimizer, print_freq=50, writer=writer)
 
 
-            # if epoch % 10 == 0:
-            #evaluate in retrained domain
-            # evaluator.evaluate_single_shot(dataset.val_probe, dataset.val_gallery, 1, writer,
-            #                                       epoch, root + dataset_ret, height, width,
-            #                                       name2save="Reid in Retrain Domain: ")
-            #
-            # evaluator.evaluate_single_shot(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height,
-            #                                width, name2save="Training data: ")
-
-            # evaluator.evaluate_one(dataset.train, dataset.train, 1, writer, epoch, root + dataset_ret, height, width,
-            #                        root2=root + dataset_orig)
-            # evaluate CM
-            # top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, writer, epoch,
-            #                                   root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal: ')
-
             top1 = evaluator.evaluate_cm(val_loader_int, val_loader_int_orig_, dataset.val_probe, dataset.val_gallery,
                                   dataset_orig_.val_probe, dataset_orig_.val_gallery, 10, writer=writer, epoch=epoch+1,
                                   metric=None, calc_cmc=True, use_all=use_all)
@@ -235,8 +184,6 @@ class Retrainer:
                                        writer=writer)
 
             ## save model if its best
-            # is_best = top1 < best_top1
-            # best_top1 = min(top1, best_top1)
             is_best = top1 > best_top1
             best_top1 = max(top1, best_top1)
 
@@ -371,12 +318,6 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers, combi
                      root=dataset.images_dir, transform=test_transformer),
         batch_size=batch_size, num_workers=workers,
         shuffle=False, pin_memory=False)
-
-    # test_loader_g = DataLoader(
-    #     Preprocessor(dataset.gallery,
-    #                  root=root2, transform=test_transformer),
-    #     batch_size=batch_size, num_workers=workers,
-    #     shuffle=False, pin_memory=False)
 
     test_loader_ret = DataLoader(
         PreprocessorRetrain(test_set,
