@@ -13,10 +13,10 @@ The code in this repository is divided in two directories:
 Please refer to requirements.yml. 
 
 ## Data 
-Download routine for the datasets are not provided in the repository. Please download and preprare the datasets yourself:
+Download routines for the datasets are not provided in the repository. Please download and prepare the datasets yourself:
 
-[BIWI](http://robotics.dei.unipd.it/reid/index.php/8-dataset/2-overview-biwi)
-[RobotPKU](https://github.com/lianghu56/RobotPKU-RGBD-ID-dataset/blob/master/Dataset%20Downloads%20Dddress.md)
+- [BIWI](http://robotics.dei.unipd.it/reid/index.php/8-dataset/2-overview-biwi)
+- [RobotPKU](https://github.com/lianghu56/RobotPKU-RGBD-ID-dataset/blob/master/Dataset%20Downloads%20Dddress.md)
 
 We included the split.json and meta.json in the datasets folder to facilitate repeating the experiments from our paper. Hence, you need to fill the images folder for each dataset accordingly. For more information refer to [Cysu's Documentation](https://cysu.github.io/open-reid/notes/overview.html).
 
