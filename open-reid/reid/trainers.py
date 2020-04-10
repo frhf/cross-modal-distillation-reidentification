@@ -7,10 +7,10 @@ from torch.autograd import Variable
 
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+sys.path.append('../reid/')
 
 from evaluation_metrics import accuracy
-from loss import OIMLoss, TripletLoss
+from loss import TripletLoss
 from utils.meters import AverageMeter
 import numpy as np
 
@@ -30,7 +30,7 @@ class BaseTrainer(object):
         losses = AverageMeter()
         precisions = AverageMeter()
 
-        # dirty solution to problem that data in retraining is different
+        # solution to problem that data in retraining is different
         if not isinstance(data_loader.dataset.dataset[0][1], np.ndarray):
             x = list(set([data[1] for data in data_loader.dataset.dataset]))
             y = [n for n in range(len(x))]
@@ -40,7 +40,7 @@ class BaseTrainer(object):
 
         end = time.time()
         for i, inputs in enumerate(data_loader):
-            print(inputs)
+
             data_time.update(time.time() - end)
 
             inputs, targets = self._parse_data(inputs, num_dict)
@@ -139,8 +139,6 @@ class BaseTrainer(object):
 
             loss = loss1 + loss2            
 
-            print(loss)
-
             if isinstance(self.criterion, torch.nn.MSELoss):
                 loss_show = torch.sqrt(loss).sum() / (len(inputs1[0])+len(inputs2[0]))
             else:
@@ -148,10 +146,6 @@ class BaseTrainer(object):
 
             losses.update(loss_show.data[0], targets1.size(0))
             precisions.update((prec1 + prec2) / 2, targets1.size(0))
-
-            #optimizer.zero_grad()
-            #loss.backward()
-            #optimizer.step()
 
             batch_time.update(time.time() - end)
             end = time.time()
@@ -192,8 +186,6 @@ class BaseTrainer(object):
     def _forward(self, inputs, targets):
         raise NotImplementedError
 
-
-# inherits from the one above
 class Trainer(BaseTrainer):
     def _parse_data(self, inputs, num_dict=None):
         imgs, _, pids, _ = inputs
@@ -206,7 +198,6 @@ class Trainer(BaseTrainer):
 
     def _forward(self, inputs, targets):
 	
-        #origin = 1
         outputs = self.model(*inputs)#, origin)
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
             loss = self.criterion(outputs, targets)
@@ -222,7 +213,7 @@ class Trainer(BaseTrainer):
             raise ValueError("Unsupported loss:", self.criterion)
         return loss, prec
 
-# inherits from the one above
+
 class TrainerRetrainer(BaseTrainer):
     def _parse_data(self, inputs, num_dict=None):
         imgs, name, enc = inputs

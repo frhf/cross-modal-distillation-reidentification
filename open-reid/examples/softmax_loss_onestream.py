@@ -285,7 +285,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default='/export/livia/data/FHafner/data')#osp.join(working_dir, 'data'))
+                        default='../../../data')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
     main(parser.parse_args())

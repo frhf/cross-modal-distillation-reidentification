@@ -18,7 +18,6 @@ class Pku(Dataset):
         super(Pku, self).__init__(root, split_id=split_id)
 
         if not self._check_integrity():
-            raise RuntimeError("Dataset not found or corrupted. " +
-                               "You can use download=True to download it.")
+            raise RuntimeError("Dataset not found. Please download it and provide it as described in Git Readme.")
 
         self.load(load_val=True, cams=False)

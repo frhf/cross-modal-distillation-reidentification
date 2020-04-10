@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import torch
 
 import sys
-#sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+
 
 from evaluators import extract_features
 from metric_learning import get_metric

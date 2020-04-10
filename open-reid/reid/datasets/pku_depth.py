@@ -7,7 +7,6 @@ import sys
 sys.path.append('..')
 
 
-#from ..utils.data import Dataset
 from utils.data import Dataset
 from utils.osutils import mkdir_if_missing
 from utils.serialization import write_json
@@ -18,7 +17,6 @@ class Pku_depth(Dataset):
         super(Pku_depth, self).__init__(root, split_id=split_id)
 
         if not self._check_integrity():
-            raise RuntimeError("Dataset not found or corrupted. " +
-                               "You can use download=True to download it.")
+             raise RuntimeError("Dataset not found. Please download it and provide it as described in Git Readme.")
 
         self.load(load_val=True, cams=False)

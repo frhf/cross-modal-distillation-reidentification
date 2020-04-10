@@ -71,7 +71,7 @@ def extract_features(model, data_loader, print_freq=1, metric=None, n_batches=No
         if i == n_batches:
             break
     print(output.shape)
-    return features, labels
+
 
 
 # calculates pairwise distances

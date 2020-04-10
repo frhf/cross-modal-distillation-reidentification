@@ -125,27 +125,9 @@ def main(args):
     evaluator = Evaluator(model)
     if args.evaluate:
         print('Test with best model:')
-	# Makes visualization of results
-        #evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
-        #                   calc_cmc=True, use_all=use_all)
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
                            calc_cmc=True, use_all=use_all)
         return
-
-    # ?? check
-    if args.evaluate_cm:
-        # ATTENTION HANDCRAFTED FOR TUM
-        root = '/export/livia/data/FHafner/data/'
-        dataset_ret = 'tum_depth'
-        dataset_orig = 'tum'
-        print('Test with best model:')
-        checkpoint = load_checkpoint(osp.join(args.logs_dir, 'model_best.pth.tar'))
-        model.module.load_state_dict(checkpoint['state_dict'])
-        # metric.train(model, train_loader)
-        evaluator.evaluate_single_shot_cm(dataset.query, dataset.gallery, 1, writer, 0, root + dataset_ret, args.height,
-                                          args.width, root + dataset_orig, 'Cross_modal: ')
-        return
-
 
     # writer for summary
     logs_dir_tb = args.logs_dir + '/tensorboard/'
@@ -259,8 +241,6 @@ if __name__ == '__main__':
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
-    parser.add_argument('--evaluate-cm', action='store_true',
-                        help="evaluation only")
     parser.add_argument('--epochs', type=int, default=150)
     parser.add_argument('--start_save', type=int, default=0,
                         help="start saving checkpoints after specific epoch")
@@ -272,7 +252,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default='/export/livia/data/FHafner/data')
+                        default='../../../data')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
     main(parser.parse_args())

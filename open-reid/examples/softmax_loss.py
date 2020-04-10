@@ -29,7 +29,7 @@ from torch.utils.data import DataLoader
 
 # Function which constructs dataloader.
 def get_data(name, split_id, data_dir, height, width, batch_size, workers,
-             combine_trainval, zero_pad):
+             combine_trainval):
     root = osp.join(data_dir, name)
 
     dataset = datasets.create(name, root, split_id=split_id)
@@ -41,33 +41,20 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers,
     num_classes = (dataset.num_trainval_ids if combine_trainval
                    else dataset.num_train_ids)
 
-    if zero_pad:
-        train_transformer = T.Compose([
-            T.RandomSizedRectCropDepth(height, width),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            normalizer,
-        ])
 
-        test_transformer = T.Compose([
-            T.RectScaleDepth(height, width),
-            T.ToTensor(),
-            normalizer,
-        ])
 
-    else:
-        train_transformer = T.Compose([
-            T.RandomSizedRectCrop(height, width),
-            T.RandomHorizontalFlip(),
-            T.ToTensor(),
-            normalizer,
-        ])
-
-        test_transformer = T.Compose([
-            T.RectScale(height, width),
-            T.ToTensor(),
-            normalizer,
-        ])
+    train_transformer = T.Compose([
+        T.RandomSizedRectCrop(height, width),
+        T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        normalizer,
+    ])
+    
+    test_transformer = T.Compose([
+        T.RectScale(height, width),
+        T.ToTensor(),
+        normalizer,
+    ])
 
     train_loader = DataLoader(
         Preprocessor(train_set, root=dataset.images_dir,
@@ -113,7 +100,7 @@ def main(args):
     dataset, num_classes, train_loader, val_loader, test_loader = \
         get_data(args.dataset, args.split, args.data_dir, args.height,
                  args.width, args.batch_size, args.workers,
-                 args.combine_trainval, args.zero_pad)
+                 args.combine_trainval)
 
     # Create model
     model = models.create(args.arch, num_features=args.features,
@@ -132,9 +119,6 @@ def main(args):
     # Evaluator
     evaluator = Evaluator(model)
     if args.evaluate:
-        # Makes comparison image
-        # evaluator.make_comp(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
-        #                    calc_cmc=True, use_all=use_all)
         model.num_classes = 0
         evaluator.evaluate(test_loader, dataset.query, dataset.gallery, 1, writer=None, epoch=None, metric=None,
                            calc_cmc=True, use_all=use_all)
@@ -190,8 +174,7 @@ def main(args):
 
         if epoch % 10 == 0:
             model.num_classes = 0
-            top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, args.print_freq, writer, epoch,
-                                      metric=None, calc_cmc=True, use_all=use_all)
+            top1 = evaluator.evaluate(val_loader, dataset.val_probe, dataset.val_gallery, args.print_freq, writer, epoch, metric=None, calc_cmc=True, use_all=use_all)
 
             is_best = top1 > best_top1
             best_top1 = max(top1, best_top1)
@@ -249,7 +232,6 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=5e-4)
     # training configs
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
-    parser.add_argument('--zero-pad', type=bool, default=False)
     parser.add_argument('--evaluate', action='store_true',
                         help="evaluation only")
     parser.add_argument('--epochs', type=int, default=50)
@@ -263,7 +245,7 @@ if __name__ == '__main__':
     # misc
     working_dir = osp.dirname(osp.abspath(__file__))
     parser.add_argument('--data-dir', type=str, metavar='PATH',
-                        default='/export/livia/data/FHafner/data')  # osp.join(working_dir, 'data'))
+                        default='../../../data')
     parser.add_argument('--logs-dir', type=str, metavar='PATH',
                         default=osp.join(working_dir, 'logs'))
     main(parser.parse_args())

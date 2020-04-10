@@ -9,7 +9,6 @@ import sys
 sys.path.append('../../reid')
 sys.path.append('../utils')
 from utils import to_numpy
-from utils.visualization_tools import calc_conf
 
 
 def _unique_sample(ids_dict, num):
@@ -42,11 +41,7 @@ def cmc(distmat, query_ids=None, gallery_ids=None,
     query_cams = np.asarray(query_cams)
     gallery_cams = np.asarray(gallery_cams)
     # Sort and find correct matches
-    # die Indizes entsprechen der sortierung von links nach rechts
     indices = np.argsort(distmat, axis=1)
-    # gallery_ids are e.g. from 0 to 6;
-    # hinterer Teil: (3175,1)
-    # hier wird die Statistik mit True, False gemacht
     matches = (gallery_ids[indices] == query_ids[:, np.newaxis])
     # Compute CMC for each query
     ret = np.zeros(topk)
@@ -126,7 +121,7 @@ def mean_ap(distmat, query_ids=None, gallery_ids=None,
         # Filter out the same id and same camera
         # filtert nur die von der gleichen camera raus
         valid = ((gallery_ids[indices[i]] != query_ids[i]) |
-                (gallery_cams[indices[i]] != query_cams[i]))# ATETNTNET
+                (gallery_cams[indices[i]] != query_cams[i]))
 
         if use_all:
             valid = same[i]

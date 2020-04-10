@@ -4,7 +4,7 @@ from collections import OrderedDict
 from torch.autograd import Variable
 
 import sys
-sys.path.append('/export/livia/home/vision/FHafner/masterthesis/open-reid/reid/')
+sys.path.append('../../reid/')
 
 from utils import to_torch
 
@@ -16,7 +16,7 @@ def extract_cnn_feature(model, inputs, modules=None):
 
     inputs = to_torch(inputs)
     inputs = Variable(inputs, volatile=True)
-    #Q: What are modules?
+
     if modules is None:
         outputs = model(inputs)
         outputs = outputs.data.cpu()
