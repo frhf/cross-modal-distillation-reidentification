@@ -13,9 +13,10 @@ The code in this repository is divided in two directories:
 Please refer to requirements.yml. 
 
 ## Data 
-Download routines for the datasets are not provided in the repository. Please download and prepare the datasets yourself:
+Download routines for the datasets are not provided in the repository. Please download and prepare the datasets yourself according to our paper:
 
 - [BIWI](http://robotics.dei.unipd.it/reid/index.php/8-dataset/2-overview-biwi)
+
 - [RobotPKU](https://github.com/lianghu56/RobotPKU-RGBD-ID-dataset/blob/master/Dataset%20Downloads%20Dddress.md)
 
 We included the split.json and meta.json in the datasets folder to facilitate repeating the experiments from our paper. Hence, you need to fill the images folder for each dataset accordingly. For more information refer to [Cysu's Documentation](https://cysu.github.io/open-reid/notes/overview.html).
@@ -25,7 +26,7 @@ After preparing the datasets you can run the code as follows (one example is giv
 
 ### Softmax Loss Single-Modal
 cd open-reid/examples
-python softmax_loss.py -d biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 512 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
+python softmax_loss.py -d biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
 ### Triplet Loss Single-Modal
 cd open-reid/examples
 python triplet_loss.py -d biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
@@ -41,8 +42,8 @@ python softmax_loss_zp.py -d1 biwi -d2 biwi_depth -a resnet50 -batch-size 64 --e
 
 
 ### Cross-Distillation Approach based on Model trained with Softmax Loss Single-Modal or Triplet Loss Single-Modal
-CUDA_VISIBLE_DEVICES=0 python /export/livia/home/vision/FHafner/masterthesis/transfer-reid/transfer-reid.py -f biwi_depth  -t biwi --path-to-orig PATH_TO_LOGDIR/logdir/train/softmax-resnet50-split0/ --name softmax-resnet50-dim512-split0/ --split-id 0 --extract True
-
+cd transfer-reid
+CUDA_VISIBLE_DEVICES=0 python transfer-reid.py -f biwi_depth -t biwi --path-to-orig PATH_TO_LOGDIR_OF_STEP_1 --name UNIQUE_NAME --split-id 0 --logdir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR --batch-size 16 --extract True
 
 ## Reference
 Hafner, F. M., Bhuiyan, A., Kooij, J. F., & Granger, E. (2019, September). RGB-depth cross-modal person re-identification. In 2019 16th IEEE International Conference on Advanced Video and Signal Based Surveillance (AVSS) (pp. 1-8). IEEE.
