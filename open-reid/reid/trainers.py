@@ -198,7 +198,7 @@ class Trainer(BaseTrainer):
 
     def _forward(self, inputs, targets):
 	
-        outputs = self.model(*inputs)#, origin)
+        outputs = self.model(*inputs)
         if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
             loss = self.criterion(outputs, targets)
             prec, = accuracy(outputs.data, targets.data)

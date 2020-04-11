@@ -183,6 +183,7 @@ def main(args):
                     'state_dict': model.state_dict(),
                     'epoch': epoch + 1,
                     'best_top1': best_top1,
+                    'num_classes': model.num_classes,
                 }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
 
             print('\n * Finished epoch {:3d}  top1: {:5.1%}  best: {:5.1%}{}\n'.

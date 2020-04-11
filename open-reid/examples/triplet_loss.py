@@ -110,7 +110,6 @@ def main(args):
     model = models.create(args.arch, num_features=1024,
                           dropout=args.dropout, num_classes=args.features)
 
-
     # Load from checkpoint
     start_epoch = best_top1 = 0
     if args.resume:
@@ -186,6 +185,7 @@ def main(args):
                 save_checkpoint({
                     'state_dict': model.module.state_dict(),
                     'epoch': epoch + 1,
+		    'num_classes': args.features,
                     'best_top1': best_top1,
                 }, is_best, fpath=osp.join(args.logs_dir, 'model_best.pth.tar'))
                 print("Model saved at: " + osp.join(args.logs_dir, 'model_best.pth.tar'))

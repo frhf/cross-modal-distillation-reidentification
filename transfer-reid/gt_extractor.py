@@ -42,6 +42,10 @@ class GtExtractor:
         self.num_classes = checkpoint['state_dict']['classifier.weight'].shape[0]
         self.model = models.create(self.model_arch, num_features=self.num_features,
                           dropout=0, num_classes=self.num_classes)
+
+	if self.num_classes != checkpoint['num_classes']:
+	    self.model.num_classes = 0
+
         self.model.load_state_dict(checkpoint['state_dict'])
 
         normalizer = T.Normalize(mean=[0.485, 0.456, 0.406],
@@ -58,7 +62,7 @@ class GtExtractor:
             normalizer,
         ])
 
-    def extract_gt(self, name, data_dir='/export/livia/data/FHafner/data/',
+    def extract_gt(self, name, data_dir='../../data/',
                    path_to_save_gt=None, extract_for='train', save_as=None, batch_size=64, workers=2):
 
         if save_as is None:
@@ -106,7 +110,7 @@ class GtExtractor:
 
             return
 
-    def extract_gt_av(self, name, name_transfer, data_dir='/export/livia/data/FHafner/data/',
+    def extract_gt_av(self, name, name_transfer, data_dir='../../data/',
                    path_to_save_gt=None, extract_for='train', batch_size=64, workers=2):
 
         root = data_dir + '/' + name

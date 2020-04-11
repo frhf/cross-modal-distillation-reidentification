@@ -38,10 +38,10 @@ class Retrainer:
         self.path_to_model = path_to_model
         self.dropout = dropout
         self.freeze_model = freeze_model
-        # self.load_weights = load_weights
         self.model = self.load_model(self.path_to_model, load_weights)
+
         if path_to_origmodel is None:
-            # self.model_orig = copy.deepcopy(self.model)
+
             self.model_orig = self.load_model(self.path_to_model, load_weights=True)
             self.model_orig.eval()
         else:
@@ -60,11 +60,15 @@ class Retrainer:
         checkpoint = torch.load(path_to_model)
         self.model_arch = name_dict[len(checkpoint['state_dict'])]
         self.num_features = checkpoint['state_dict']['classifier.weight'].shape[1]
-        self.num_classes = checkpoint['state_dict']['classifier.weight'].shape[0]
-        model = models.create(self.model_arch, num_features=self.num_features,
-                          dropout=self.dropout, num_classes=self.num_classes)
+        self.num_classes_load = checkpoint['state_dict']['classifier.weight'].shape[0]
+	self.num_classes_infer = checkpoint['num_classes']
 
-        model.num_classes = 0
+        model = models.create(self.model_arch, num_features=self.num_features,
+                          dropout=self.dropout, num_classes=self.num_classes_load)
+
+        # hack to make softmax loss work
+	if self.num_classes_load != self.num_classes_infer:
+	    model.num_classes = 0 
 
         if load_weights:
             model.load_state_dict(checkpoint['state_dict'])
@@ -83,7 +87,7 @@ class Retrainer:
 
         return model
 
-    def retrain(self, dataset_ret, dataset_orig, path_to_gt, root='/export/livia/data/FHafner/data/',
+    def retrain(self, dataset_ret, dataset_orig, path_to_gt, root='../../data/',
                 epochs=50, split_id=0, start_epoch=1, batch_size=64, workers=0,
                 combine_trainval=False, path_to_retmodel=None, evaluate=None, name_val=[],
                 name_test=[]):
@@ -108,10 +112,15 @@ class Retrainer:
             get_data(dataset_orig, split_id, root, height, width, batch_size, workers, combine_trainval, path_to_gt)
 
         if evaluate:
+            
             model_load = models.create(self.model_arch, num_features=self.num_features,
-                                  dropout=self.dropout, num_classes=self.num_classes)
+                                  dropout=self.dropout, num_classes=self.num_classes_load)
             checkpoint = load_checkpoint(osp.join(path_to_retmodel, 'model_best.pth.tar'))
             model_load.load_state_dict(checkpoint['state_dict'])
+
+	    if self.num_classes_load != self.num_classes_infer:
+	       model_load.num_classes = 0 
+
             print(checkpoint['epoch'])
             evaluator = Evaluator(model_load, self.model_orig)
 
@@ -196,9 +205,13 @@ class Retrainer:
                 }, is_best, fpath=osp.join(path_to_retmodel, 'model_best.pth.tar'))
 
         model_load = models.create(self.model_arch, num_features=self.num_features,
-                                   dropout=self.dropout, num_classes=self.num_classes)
+                                   dropout=self.dropout, num_classes=self.num_classes_load)
         checkpoint = load_checkpoint(osp.join(path_to_retmodel, 'model_best.pth.tar'))
         model_load.load_state_dict(checkpoint['state_dict'])
+
+	if self.num_classes_load != self.num_classes_infer:
+	    model_load.num_classes = 0 
+
         print(checkpoint['epoch'])
         evaluator = Evaluator(model_load, self.model_orig)
 
@@ -212,41 +225,6 @@ class Retrainer:
         evaluator.evaluate_cm(test_loader, test_loader_orig_, dataset.query, dataset.gallery,
                               dataset_orig_.query, dataset_orig_.gallery, 10, writer=None, epoch=0,
                               metric=None, calc_cmc=True, use_all=use_all, final=name_test)
-
-
-
-    def re_evaluate_retrain(self, dataset_ret, dataset_orig, path_to_gt, root='/export/livia/data/FHafner/data/',
-                         split_id=0, batch_size=64, workers=2, combine_trainval=False, path_to_retsavemodel=None):
-
-        if self.model_arch == 'inception':
-            height, width = (144, 56)
-        else:
-            height, width = (256, 128)
-
-        # load retrain dataset
-        dataset, train_loader, val_loader_ret, val_loader_int, test_loader, test_loader_ret = \
-            get_data(dataset_ret, split_id, root, height, width, batch_size, workers, combine_trainval,
-                     path_to_gt)
-
-        dataset_orig_, train_loader_orig_, val_loader_ret_orig_, val_loader_int_orig_, test_loader_orig_, \
-        test_loader_ret_orig_ = \
-            get_data(dataset_orig, split_id, root, height, width, batch_size, workers, combine_trainval,
-                     path_to_gt)
-
-        # reload model
-        checkpoint = load_checkpoint(path_to_retsavemodel + 'model_best.pth.tar')
-        self.model.load_state_dict(checkpoint['state_dict'])
-
-        evaluator = Evaluator(self.model, self.model_orig)
-        top1 = evaluator.evaluate_single_shot_cm(dataset.val_probe, dataset_orig_.val_gallery, 1, None, 0,
-                                          root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal val set: ')
-
-
-        top1 = evaluator.evaluate_single_shot_cm(dataset.query, dataset_orig_.gallery, 1, None, 0,
-                                          root + dataset_ret, height, width, root + dataset_orig, 'Cross_modal test set: ')
-
-        if dataset_ret == 'sysu' or dataset_ret == 'sysu_ir':
-            evaluator.evaluate_all_and_save_sysu(test_loader, test_loader_orig_, path_to_retsavemodel, height, width)
 
 
 def get_data(name, split_id, data_dir, height, width, batch_size, workers, combine_trainval, path_to_gt):
