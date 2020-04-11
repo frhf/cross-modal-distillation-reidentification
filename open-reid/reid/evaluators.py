@@ -126,7 +126,7 @@ def evaluate_all(distmat, query=None, gallery=None,
     if calc_cmc:
         # Compute all kinds of CMC scores
         cmc_configs = {
-            'cuhk03': dict(separate_camera_set=True,
+            'score': dict(separate_camera_set=True,
                            single_gallery_shot=True,
                            first_match_break=False,
                            use_all=use_all,
@@ -137,24 +137,22 @@ def evaluate_all(distmat, query=None, gallery=None,
                       for name, params in cmc_configs.items()}
 
 
-        print(save_as)
-        print('CMC Scores{:>12}'
-             .format('cuhk03')) 
+        print('CMC Scores') 
         for k in cmc_topk:
             print('  top-{:<4}{:12.1%}'
-                  .format(k, cmc_scores['cuhk03'][k - 1])),
+                  .format(k, cmc_scores['score'][k - 1])),
                       
     if writer is not None:
-        writer.add_scalar(save_as + ' Rank 1', cmc_scores['cuhk03'][0], epoch)
-        writer.add_scalar(save_as + 'Rank 5', cmc_scores['cuhk03'][4], epoch)
-        writer.add_scalar(save_as + 'Rank 10', cmc_scores['cuhk03'][9], epoch)
+        writer.add_scalar(save_as + ' Rank 1', cmc_scores['score'][0], epoch)
+        writer.add_scalar(save_as + 'Rank 5', cmc_scores['score'][4], epoch)
+        writer.add_scalar(save_as + 'Rank 10', cmc_scores['score'][9], epoch)
         writer.add_scalar(save_as + ' mAP', mAP, epoch)
 
     if not final == []:
 
         path = './results'
         file = open(path + final, 'ab+')
-        pickle.dump([cmc_scores['cuhk03'][0], cmc_scores['cuhk03'][4], cmc_scores['cuhk03'][9], mAP], file)
+        pickle.dump([cmc_scores['score'][0], cmc_scores['score'][4], cmc_scores['score'][9], mAP], file)
         file.close()
 
     return mAP
