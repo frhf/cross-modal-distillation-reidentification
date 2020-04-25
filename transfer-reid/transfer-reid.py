@@ -25,14 +25,12 @@ def main(args):
     oldstr = 'f-' + args.from_ + '-t-' + args.to_ + '-' + args.name + '-split' + str(args.split_id) + '-test'
     name_test = oldstr.replace("/", "")
 
-    path_to_save_gt = osp.join(args.logdir, args.from_, args.path_to_orig)
-    print("Groundtruth for distillation is saved in " + path_to_save_gt)
+    print("Groundtruth for distillation is saved in " + args.path_to_orig)
 
-    path_to_origmodel = osp.join(path_to_save_gt, 'model_best.pth.tar')
+    path_to_origmodel = osp.join(args.path_to_orig, 'model_best.pth.tar')
     print("Model used as baseline for distillation is saved in " + path_to_origmodel)
 
-    path_to_retsavemodel = osp.join(args.logdir, args.to_, args.name)
-    print("Distilled Model is saved to " + path_to_retsavemodel)
+    print("Distilled Model is saved to " + args.path_to_dist)
 
     if os.path.exists(path_to_retsavemodel) and not args.evaluate:
         raise Exception('There is already a trained model in the directory you are trying to save the retrained model to. Please delete it, if you want to save the new model to there.' )
@@ -72,6 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--evaluate', type=bool, default=False)
     parser.add_argument('--logdir', type=str, default='../../logdir')
     parser.add_argument('--path-to-orig', type=str)
+    parser.add_argument('--path-to-dist', type=str)    
     parser.add_argument('--name', type=str)
     parser.add_argument('--split-id', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=30)
