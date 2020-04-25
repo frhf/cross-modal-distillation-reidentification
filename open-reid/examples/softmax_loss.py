@@ -83,10 +83,10 @@ def main(args):
     use_all = True
 
     # Names in which the result files are saved are constructed.
-    name_val = args.dataset + '-' + \
-        args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val'
-    name_test = args.dataset + '-' + \
-        args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test'
+    name_val = osp.join(args.logs_dir, args.dataset + '-' + \
+        args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-val')
+    name_test = osp.join(args.logs_dir, args.dataset + '-' + \
+        args.logs_dir.split('/')[-1] + '-split' + str(args.split) + '-test')
     print(name_test)
 
     # Create data loaders -> image size
