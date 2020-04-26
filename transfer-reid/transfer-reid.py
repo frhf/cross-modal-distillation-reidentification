@@ -73,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--logdir', type=str, default='../../logdir')
     parser.add_argument('--path-to-orig', type=str)
     parser.add_argument('--path-to-dist', type=str)    
-    parser.add_argument('--name', type=str)
+    parser.add_argument('--name', type=str, default='dummy_name')
     parser.add_argument('--split-id', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--batch-size', type=int, default=64)    
