@@ -43,8 +43,8 @@ class GtExtractor:
         self.model = models.create(self.model_arch, num_features=self.num_features,
                           dropout=0, num_classes=self.num_classes)
 
-	if self.num_classes != checkpoint['num_classes']:
-	    self.model.num_classes = 0
+        if self.num_classes != checkpoint['num_classes']:
+	         self.model.num_classes = 0
 
         self.model.load_state_dict(checkpoint['state_dict'])
 

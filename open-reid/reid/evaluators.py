@@ -150,8 +150,7 @@ def evaluate_all(distmat, query=None, gallery=None,
 
     if not final == []:
 
-        path = './results'
-        file = open(path + final, 'ab+')
+        file = open(final, 'ab+')
         pickle.dump([cmc_scores['score'][0], cmc_scores['score'][4], cmc_scores['score'][9], mAP], file)
         file.close()
 

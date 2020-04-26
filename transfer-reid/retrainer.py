@@ -61,14 +61,14 @@ class Retrainer:
         self.model_arch = name_dict[len(checkpoint['state_dict'])]
         self.num_features = checkpoint['state_dict']['classifier.weight'].shape[1]
         self.num_classes_load = checkpoint['state_dict']['classifier.weight'].shape[0]
-	self.num_classes_infer = checkpoint['num_classes']
+        self.num_classes_infer = checkpoint['num_classes']
 
         model = models.create(self.model_arch, num_features=self.num_features,
                           dropout=self.dropout, num_classes=self.num_classes_load)
 
         # hack to make softmax loss work
-	if self.num_classes_load != self.num_classes_infer:
-	    model.num_classes = 0 
+        if self.num_classes_load != self.num_classes_infer:
+	          model.num_classes = 0 
 
         if load_weights:
             model.load_state_dict(checkpoint['state_dict'])
@@ -118,8 +118,8 @@ class Retrainer:
             checkpoint = load_checkpoint(osp.join(path_to_retmodel, 'model_best.pth.tar'))
             model_load.load_state_dict(checkpoint['state_dict'])
 
-	    if self.num_classes_load != self.num_classes_infer:
-	       model_load.num_classes = 0 
+            if self.num_classes_load != self.num_classes_infer:
+               model_load.num_classes = 0 
 
             print(checkpoint['epoch'])
             evaluator = Evaluator(model_load, self.model_orig)
@@ -209,8 +209,8 @@ class Retrainer:
         checkpoint = load_checkpoint(osp.join(path_to_retmodel, 'model_best.pth.tar'))
         model_load.load_state_dict(checkpoint['state_dict'])
 
-	if self.num_classes_load != self.num_classes_infer:
-	    model_load.num_classes = 0 
+        if self.num_classes_load != self.num_classes_infer:
+           model_load.num_classes = 0 
 
         print(checkpoint['epoch'])
         evaluator = Evaluator(model_load, self.model_orig)
@@ -249,11 +249,11 @@ def get_data(name, split_id, data_dir, height, width, batch_size, workers, combi
         normalizer,
     ])
 
-    train_set = pickle.load(open(path_to_gt + 'gt_train.txt', "rb"))
-    val_query_set = pickle.load(open(path_to_gt + 'gt_val_probe.txt', "rb"))
-    val_gallery_set = pickle.load(open(path_to_gt + 'gt_val_gallery.txt', "rb"))
-    query_set = pickle.load(open(path_to_gt + 'gt_query.txt', "rb"))
-    gallery_set = pickle.load(open(path_to_gt + 'gt_gallery.txt', "rb"))
+    train_set = pickle.load(open(osp.join(path_to_gt, 'gt_train.txt'), "rb"))
+    val_query_set = pickle.load(open(osp.join(path_to_gt, 'gt_val_probe.txt'), "rb"))
+    val_gallery_set = pickle.load(open(osp.join(path_to_gt, 'gt_val_gallery.txt'), "rb"))
+    query_set = pickle.load(open(osp.join(path_to_gt, 'gt_query.txt'), "rb"))
+    gallery_set = pickle.load(open(osp.join(path_to_gt, 'gt_gallery.txt'), "rb"))
 
     if val_gallery_set[0][0]!=val_query_set[0][0]:
         val_set = val_gallery_set + val_query_set

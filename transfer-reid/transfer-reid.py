@@ -21,41 +21,43 @@ def main(args):
 
     oldstr = 'f-' + args.from_ + '-t-' + args.to_ + '-' + args.name + '-split' + str(args.split_id) + '-val'
     name_val = oldstr.replace("/", "")
+    name_val = osp.join(args.logdir,name_val)
 
     oldstr = 'f-' + args.from_ + '-t-' + args.to_ + '-' + args.name + '-split' + str(args.split_id) + '-test'
     name_test = oldstr.replace("/", "")
+    name_test = osp.join(args.logdir,name_test)
 
-    print("Groundtruth for distillation is saved in " + args.path_to_orig)
+    print("Groundtruth for distillation is saved in " + args.path_to_dist)
 
     path_to_origmodel = osp.join(args.path_to_orig, 'model_best.pth.tar')
     print("Model used as baseline for distillation is saved in " + path_to_origmodel)
 
     print("Distilled Model is saved to " + args.path_to_dist)
 
-    if os.path.exists(path_to_retsavemodel) and not args.evaluate:
+    if os.path.exists(args.path_to_dist) and not args.evaluate:
         raise Exception('There is already a trained model in the directory you are trying to save the retrained model to. Please delete it, if you want to save the new model to there.' )
+        
+    if not os.path.exists(args.path_to_dist):
+        os.makedirs(args.path_to_dist)
 
     if args.extract:
         gtExtractor = GtExtractor(path_to_origmodel)
         if args.av:
-            gtExtractor.extract_gt_av(args.from_, args.to_, path_to_save_gt=path_to_save_gt, extract_for='train')
-            gtExtractor.extract_gt_av(args.from_, args.to_, path_to_save_gt=path_to_save_gt, extract_for='val')
-            gtExtractor.extract_gt_av(args.from_, args.to_,  path_to_save_gt=path_to_save_gt, extract_for='query')
+            gtExtractor.extract_gt_av(args.from_, args.to_, path_to_save_gt=args.path_to_dist, extract_for='train')
+            gtExtractor.extract_gt_av(args.from_, args.to_, path_to_save_gt=args.path_to_dist, extract_for='val')
+            gtExtractor.extract_gt_av(args.from_, args.to_,  path_to_save_gt=args.path_to_dist, extract_for='query')
 
         else:
-            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=path_to_save_gt, extract_for='train')
-            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=path_to_save_gt, extract_for='val_gallery')
-            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=path_to_save_gt, extract_for='val_probe')
-            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=path_to_save_gt, extract_for='gallery')
-            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=path_to_save_gt, extract_for='query')
-
-    if not os.path.exists(path_to_retsavemodel):
-        os.makedirs(path_to_retsavemodel)
+            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=args.path_to_dist, extract_for='train')
+            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=args.path_to_dist, extract_for='val_gallery')
+            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=args.path_to_dist, extract_for='val_probe')
+            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=args.path_to_dist, extract_for='gallery')
+            gtExtractor.extract_gt(args.from_, data_dir=args.data_dir ,path_to_save_gt=args.path_to_dist, extract_for='query')
 
     retrainer = Retrainer(path_to_origmodel, dropout=args.dropout, freeze_model=args.freeze_model, load_weights=args.load_weights)
 
-    retrainer.retrain(args.to_, args.from_, path_to_save_gt, root=args.data_dir, batch_size=args.batch_size, epochs=args.epochs, combine_trainval=False, workers=args.workers,
-                      path_to_retmodel=path_to_retsavemodel, evaluate=args.evaluate, split_id=args.split_id, name_val=name_val,
+    retrainer.retrain(args.to_, args.from_, args.path_to_dist, root=args.data_dir, batch_size=args.batch_size, epochs=args.epochs, combine_trainval=False, workers=args.workers,
+                      path_to_retmodel=args.path_to_dist, evaluate=args.evaluate, split_id=args.split_id, name_val=name_val,
                       name_test=name_test)
 
     pass
