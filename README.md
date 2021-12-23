@@ -26,23 +26,29 @@ After preparing the datasets you can run the code as follows (one example is giv
 
 ### Softmax Loss Single-Modal
 cd open-reid/examples
+
 python softmax_loss.py -d biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
 ### Triplet Loss Single-Modal
 cd open-reid/examples
+
 python triplet_loss.py -d biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
 ### Softmax Loss One-Stream Network
 cd open-reid/examples
+
 python softmax_loss_onestream.py -d1 biwi -d2 biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
 ### Softmax Loss Two-Stream Network
 cd open-reid/examples
+
 python softmax_loss_twostream.py -d1 biwi -d2 biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
 ### Softmax Loss Zero-Padding Network
 cd open-reid/examples
+
 python softmax_loss_zp.py -d1 biwi -d2 biwi_depth -a resnet50 -batch-size 64 --epochs 100 --split 0 --features 128 --logs-dir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR
 
 
 ### Cross-Distillation Approach based on Model trained with Softmax Loss Single-Modal or Triplet Loss Single-Modal
 cd transfer-reid
+
 CUDA_VISIBLE_DEVICES=0 python transfer-reid.py -f biwi_depth -t biwi --path-to-orig PATH_TO_LOGDIR_OF_STEP_1 --name UNIQUE_NAME --split-id 0 --logdir PATH_TO_LOGDIR --data-dir PATH_TO_DATA_DIR --batch-size 16 --extract True
 
 ## Reference
